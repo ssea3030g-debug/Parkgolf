@@ -10,7 +10,7 @@
 
   /* ── 저장소 ─────────────────────────────────────── */
   const KEY = 'parkgolf.v1';
-  const blank = () => ({ courses: [], rounds: [], bets: [], events: [], players: [], settings: { name: '', size: 'big', theme: 'auto', alarms: ['1d', '2h'], server: { url: '', pass: '' } }, checklist: { date: '', checked: {} }, aiOverall: null });
+  const blank = () => ({ courses: [], rounds: [], bets: [], events: [], players: [], settings: { name: '', size: 'big', theme: 'auto', alarms: ['1d', '2h'], server: { url: '', pass: '' }, cal: { url: '', keywords: '파크골프, 파크, 골프, 대회' } }, calCache: null, checklist: { date: '', checked: {} }, aiOverall: null });
   let db = load();
   function load() {
     try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return Object.assign(blank(), s, { settings: Object.assign(blank().settings, s.settings || {}) }); } catch (e) { /* 처음 */ }
@@ -105,6 +105,31 @@
     } finally { clearTimeout(tm); }
   }
 
+  /* ── 구글(삼성) 캘린더 자동 연결: 서버가 비공개 iCal 주소를 대신 읽어 파크골프 일정만 돌려줌 ── */
+  const calOn = () => srvOn() && !!(db.settings.cal && db.settings.cal.url);
+  const calKeywords = () => String((db.settings.cal && db.settings.cal.keywords) || '').split(/[,，\s]+/).map(x => x.trim()).filter(Boolean);
+  async function syncCal(force) {
+    if (!calOn()) return null;
+    const c = db.calCache;
+    if (!force && c && Date.now() - c.at < 15 * 60000) return c;
+    const j = await srv('/calendar', { body: { url: db.settings.cal.url, keywords: calKeywords(), days: 365 }, timeout: 30000 });
+    db.calCache = { at: Date.now(), name: j.calName || '', scanned: j.scanned, events: j.events || [] };
+    save(); return db.calCache;
+  }
+  const normTitle = t => String(t || '').replace(/^⛳\s*/, '').replace(/\s+/g, '');
+  /* 내가 앱에서 만든 일정 + 캘린더에서 가져온 일정 (같은 제목·날짜는 하나로) */
+  function allEvents() {
+    const mine = db.events.map(e => Object.assign({}, e));
+    const seen = new Set(mine.map(e => normTitle(e.title) + '|' + e.date));
+    const fromCal = ((calOn() && db.calCache && db.calCache.events) || []).filter(e => !seen.has(normTitle(e.title) + '|' + e.date)).map((e, i) => ({
+      id: 'cal' + i + e.date, cal: true, type: /대회/.test(e.title) ? '대회' : /모임|동호회|월례/.test(e.title) ? '모임' : '연습',
+      title: e.title.replace(/^⛳\s*/, ''), date: e.date, time: e.time || '', end: e.end || '', place: e.place || '', memo: e.memo || '', repeat: e.repeat
+    }));
+    return [...mine, ...fromCal];
+  }
+  const byWhen = (a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''));
+  const agoText = at => { const m = Math.round((Date.now() - at) / 60000); return m < 1 ? '방금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`; };
+
   /* ── 화면 설정 ──────────────────────────────────── */
   function applySettings() {
     const r = document.documentElement;
@@ -175,7 +200,7 @@
     const name = db.settings.name;
     const h = new Date().getHours();
     const hello = h < 11 ? '좋은 아침이에요' : h < 17 ? '안녕하세요' : '편안한 저녁 되세요';
-    const next = db.events.filter(e => e.date >= today()).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];
+    const next = allEvents().filter(e => e.date >= today()).sort(byWhen)[0];
     const fav = db.courses.find(c => c.fav) || db.courses[0];
     const last = [...db.rounds].sort((a, b) => b.date.localeCompare(a.date))[0];
     const live = db.bets.find(b => b.status === 'playing');
@@ -201,7 +226,7 @@
     }
     return {
       title: '파크골프 수첩', html, back: null,
-      after: () => { if (fav) loadMiniWx(fav, $('#homeWx')); }
+      after: () => { if (fav) loadMiniWx(fav, $('#homeWx')); if (calOn()) { const before = db.calCache && db.calCache.at; syncCal().then(c => { if (c && c.at !== before && parse().name === 'home') render(); }).catch(() => {}); } }
     };
   };
 
@@ -969,17 +994,23 @@
   /* ════════════════ 일정 ════════════════ */
   const EV_ICON = { 대회: I('trophy'), 모임: I('users'), 연습: I('flag'), 기타: I('pin') };
   views.schedule = () => {
-    const up = db.events.filter(e => e.date >= today()).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
-    const past = db.events.filter(e => e.date < today()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15);
+    const all = allEvents();
+    const up = all.filter(e => e.date >= today()).sort(byWhen);
+    const past = all.filter(e => e.date < today() && !e.cal).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15);
     let html = `<a class="btn primary block xl" href="#event-new">＋ 일정 추가하기</a>`;
+    if (calOn()) {
+      const c = db.calCache;
+      html += `<div class="note info" id="calStatus"><b>삼성 캘린더 자동 연결 중</b>${c ? `파크골프 일정 ${c.events.length}개 · ${agoText(c.at)} 확인` : '일정을 불러오는 중…'} <button type="button" class="btn ghost" data-act="cal-refresh" style="min-height:44px;margin-top:8px;display:flex">지금 다시 확인</button></div>`;
+    } else if (srvOn()) html += `<div class="note warn"><b>삼성 캘린더를 자동으로 가져올 수 있어요</b>설정 → 삼성 캘린더 자동 연결에서 구글 캘린더 주소를 한 번만 넣으면 돼요. <a href="#more">설정으로 가기</a></div>`;
     const card = e => {
-      const rec = e.type === '대회' && e.date <= today() && !db.rounds.find(r => r.eventId === e.id);
+      const rec = !e.cal && e.type === '대회' && e.date <= today() && !db.rounds.find(r => r.eventId === e.id);
       return `<section class="card"><div class="ev-head"><span class="ev-ico">${EV_ICON[e.type] || EV_ICON["기타"]}</span><span class="dday">${dday(e.date)}</span></div><p class="big" style="margin:10px 0 2px">${esc(e.title)}</p><p style="margin:0;font-weight:600">${fmtDate(e.date)} ${fmtTime(e.time)}</p>${e.place ? `<p class="muted" style="margin:0">${esc(e.place)}</p>` : ''}
         ${e.memo ? `<p class="muted small" style="white-space:pre-wrap">${esc(e.memo)}</p>` : ''}
         <div style="height:10px"></div>
-        ${e.date >= today() ? `<div class="btn-row"><button class="btn" data-act="ev-ics" data-id="${e.id}">삼성 캘린더</button><a class="btn" href="${gcalUrl(e)}" target="_blank" rel="noopener">구글 캘린더</a></div><div style="height:10px"></div>` : ''}
+        ${e.cal ? `<p class="muted small" style="margin:0"><span class="tag info">캘린더</span> 삼성·구글 캘린더에서 가져왔어요${e.repeat ? ' (반복 일정)' : ''}. 고치려면 캘린더에서 고쳐 주세요.</p></section>` : ''}
+        ${e.cal ? '' : ''}${!e.cal && e.date >= today() ? `<div class="btn-row"><button class="btn" data-act="ev-ics" data-id="${e.id}">삼성 캘린더</button><a class="btn" href="${gcalUrl(e)}" target="_blank" rel="noopener">구글 캘린더</a></div><div style="height:10px"></div>` : ''}
         ${rec ? `<button class="btn primary block" data-act="ev-record" data-id="${e.id}">이 대회 성적 기록하기</button><div style="height:10px"></div>` : ''}
-        <div class="btn-row"><a class="btn ghost" href="#event-edit-${e.id}">고치기</a><button class="btn danger" data-act="ev-del" data-id="${e.id}">지우기</button></div></section>`;
+        ${e.cal ? '' : `<div class="btn-row"><a class="btn ghost" href="#event-edit-${e.id}">고치기</a><button class="btn danger" data-act="ev-del" data-id="${e.id}">지우기</button></div></section>`}`;
     };
     if (up.length) html += `<h2 class="section-title">다가오는 일정 (${up.length})</h2>${up.map(card).join('')}`;
     else html += `<div class="empty"><span class="ico">${I('cal')}</span>다가오는 파크골프 일정이 없어요.</div>`;
@@ -993,8 +1024,21 @@
       <p><b>가져오기:</b> 삼성 캘린더 일정을 파일(.ics)로 내보낸 뒤 ‘캘린더에서 가져오기’로 고르면 <b>파크골프·골프·대회</b>가 들어간 일정만 골라서 가져와요.</p>
       <p class="muted small">휴대폰 보안 때문에 이 앱이 삼성 캘린더를 직접 읽거나 바꾸지는 못해요.</p></details></section>`;
     if (past.length) html += `<h2 class="section-title">지난 일정</h2>${past.map(card).join('')}`;
-    return { title: '파크골프 일정', html, after: () => { $('#ev-import').addEventListener('change', importIcs); } };
+    return { title: '파크골프 일정', html, after: () => { $('#ev-import').addEventListener('change', importIcs); if (calOn()) refreshCal(false); } };
   };
+  async function refreshCal(force) {
+    const st = () => $('#calStatus');
+    try {
+      const before = db.calCache && db.calCache.at;
+      const c = await syncCal(force);
+      if (parse().name !== 'schedule') return;
+      if (c && (c.at !== before)) render(); // 새 일정이 있으면 화면을 다시 그림
+      else if (st() && c) st().querySelector('b').nextSibling.textContent = `파크골프 일정 ${c.events.length}개 · ${agoText(c.at)} 확인 `;
+    } catch (e) {
+      if (st()) st().className = 'note bad', st().innerHTML = `<b>캘린더를 가져오지 못했어요</b>${esc(e.message)} <button type="button" class="btn ghost" data-act="cal-refresh" style="min-height:44px;margin-top:8px;display:flex">다시 시도</button>`;
+    }
+  }
+  acts['cal-refresh'] = el => { el.disabled = true; el.textContent = '확인하는 중…'; refreshCal(true); };
   function gcalUrl(e) {
     const [s, en] = evTimes(e);
     const f = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
@@ -1179,6 +1223,20 @@
       <label class="field"><span>앱 비밀번호 (없으면 비워 두세요)</span><input type="text" id="srv-pass" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).pass || '')}"></label>
       <div class="btn-row"><button class="btn primary" data-act="srv-save">저장하고 확인</button><button class="btn ghost" data-act="srv-clear">연결 끊기</button></div>
       <div id="srv-status"></div></section>
+    <section class="card"><h2>삼성 캘린더 자동 연결 (구글 캘린더 이용)</h2>
+      ${srvOn() ? '' : '<div class="note warn"><b>먼저 위의 서버 연결이 필요해요</b>서버 주소를 넣고 저장해 주세요.</div>'}
+      <p class="muted small" style="margin-top:0">삼성 캘린더가 구글 계정과 동기화되어 있으면, 구글 캘린더의 <b>비공개 주소</b>를 한 번 넣는 것만으로 파크골프 일정이 앱에 자동으로 나와요. (읽기만 해요)</p>
+      <label class="field"><span>구글 캘린더 비공개 주소</span><input type="text" id="cal-url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc((s.cal || {}).url || '')}" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"></label>
+      <label class="field"><span>가져올 일정의 낱말 (쉼표로 구분)</span><input type="text" id="cal-kw" value="${esc((s.cal || {}).keywords || '')}"></label>
+      <div class="btn-row"><button class="btn primary" data-act="cal-save">저장하고 확인</button><button class="btn ghost" data-act="cal-clear">연결 끊기</button></div>
+      <div id="cal-status"></div>
+      <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:800;min-height:48px">주소 찾는 방법 보기</summary>
+        <p><b>1.</b> 삼성 캘린더 → ☰ → 설정 → 캘린더 관리에 <b>구글 계정 이름</b>이 있어야 해요. 없으면 계정을 추가해 동기화를 켜세요.</p>
+        <p><b>2.</b> 휴대폰 크롬에서 <a href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noopener">구글 캘린더 설정</a>을 열고 로그인하세요. 화면이 작게 나오면 크롬 ⋮ 메뉴에서 <b>‘데스크톱 사이트’</b>를 켜세요.</p>
+        <p><b>3.</b> 왼쪽 <b>‘내 캘린더의 설정’</b>에서 가져올 캘린더(내 이름)를 누르고, 아래로 내려가 <b>‘iCal 형식의 비공개 주소’</b>를 복사하세요.</p>
+        <p><b>4.</b> 위 칸에 붙여 넣고 <b>저장하고 확인</b>을 누르세요.</p>
+        <div class="note warn"><b>이 주소는 비밀번호와 같아요</b>남에게 보내거나 사진으로 올리지 마세요. 새어 나갔으면 구글 캘린더에서 ‘비공개 주소 재설정’을 누르세요. 이 앱은 주소를 기기 안에만 두고, 서버는 읽을 때만 잠깐 받아 쓰고 저장하지 않아요. 백업 파일에도 넣지 않아요.</div>
+        <p class="muted small">구글 캘린더 쪽 반영이 늦으면 앱에도 늦게 보일 수 있어요(최대 몇 시간). 일정을 앱에서 새로 넣는 건 ‘삼성 캘린더’ 버튼을 그대로 쓰세요.</p></details></section>
     <section class="card"><h2>휴대폰 화면에 앱 아이콘 만들기</h2>
       ${installEvt ? '<button class="btn primary block" data-act="st-install">홈 화면에 추가</button>' : ''}
       <p><b>삼성 인터넷:</b> 아래쪽 ☰ 메뉴 → <b>‘현재 페이지 추가’</b> → <b>‘홈 화면’</b></p><p><b>크롬:</b> 오른쪽 위 ⋮ → <b>‘홈 화면에 추가’</b></p></section>
@@ -1190,6 +1248,21 @@
     <button class="btn danger block" data-act="st-wipe">모든 기록 지우기</button>`;
     return { title: '설정·백업', html, after: () => { $('#bk-file').addEventListener('change', async ev => { const f = ev.target.files[0]; if (f) restore(await f.text()); }); } };
   };
+  acts['cal-save'] = async () => {
+    if (!srvOn()) return toast('먼저 서버 연결을 해 주세요');
+    let url = $('#cal-url').value.trim().replace(/^webcal:/i, 'https:');
+    const kw = $('#cal-kw').value.trim() || '파크골프, 파크, 골프, 대회';
+    const box = $('#cal-status');
+    if (!/^https:\/\/calendar\.google\.com\/calendar\/ical\//.test(url)) { box.innerHTML = '<div class="note bad"><b>주소가 달라요</b>https://calendar.google.com/calendar/ical/ 로 시작하는 ‘iCal 형식의 비공개 주소’를 넣어 주세요.</div>'; return; }
+    db.settings.cal = { url, keywords: kw }; db.calCache = null; save();
+    box.innerHTML = '<p class="muted"><span class="spinner"></span> 캘린더를 읽는 중…</p>';
+    try {
+      const c = await syncCal(true);
+      const next = c.events.filter(e => e.date >= today()).slice(0, 3);
+      box.innerHTML = `<div class="note good"><b>연결됐어요${c.name ? ' · ' + esc(c.name) : ''}</b>캘린더 일정 ${c.scanned}개 중 파크골프 일정 ${c.events.length}개를 찾았어요.${next.length ? '<br>다가오는 일정: ' + next.map(e => esc(fmtDate(e.date) + ' ' + e.title)).join(' / ') : ' 다가오는 일정은 아직 없어요.'}${c.events.length === 0 ? '<br>낱말을 바꿔 보세요. (예: 파크, 골프, 모임)' : ''}</div>`;
+    } catch (e) { box.innerHTML = `<div class="note bad"><b>연결하지 못했어요</b>${esc(e.message)}</div>`; }
+  };
+  acts['cal-clear'] = () => { db.settings.cal = { url: '', keywords: db.settings.cal ? db.settings.cal.keywords : '' }; db.calCache = null; save(); rerenderKeep(); toast('캘린더 연결을 끊었어요'); };
   acts['srv-save'] = async el => {
     const url = $('#srv-url').value.trim(), pass = $('#srv-pass').value.trim();
     if (url && !/^https:\/\//.test(url)) return toast('주소는 https:// 로 시작해야 해요');
@@ -1212,7 +1285,7 @@
   acts['st-theme'] = el => { db.settings.theme = el.dataset.v; save(); applySettings(); rerenderKeep(); };
   acts['st-alarm'] = el => { const a = db.settings.alarms = db.settings.alarms || []; const i = a.indexOf(el.dataset.v); if (i >= 0) a.splice(i, 1); else a.push(el.dataset.v); save(); el.setAttribute('aria-pressed', i < 0); };
   acts['st-install'] = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; } };
-  const backupText = () => { const c = JSON.parse(JSON.stringify(db)); if (c.settings.server) c.settings.server.pass = ''; return JSON.stringify(c); }; // 비밀번호는 백업에 넣지 않음
+  const backupText = () => { const c = JSON.parse(JSON.stringify(db)); if (c.settings.server) c.settings.server.pass = ''; if (c.settings.cal) c.settings.cal.url = ''; c.calCache = null; return JSON.stringify(c); }; // 비밀번호는 백업에 넣지 않음
   acts['bk-save'] = () => download(`parkgolf-backup-${today()}.json`, backupText(), 'application/json');
   acts['bk-copy'] = async () => { try { await navigator.clipboard.writeText(backupText()); toast('복사했어요. 카카오톡 ‘나와의 채팅’에 붙여 넣어 두세요.', 4000); } catch (e) { modal(`<h2>아래 글을 길게 눌러 모두 복사하세요</h2><textarea readonly style="min-height:200px">${esc(backupText())}</textarea><button class="btn primary block" data-res="ok">닫기</button>`); } };
   acts['bk-paste'] = () => modal(`<h2>백업한 글을 붙여 넣으세요</h2><textarea id="bk-text" style="min-height:200px"></textarea><div class="btn-row"><button class="btn ghost" data-res="no">취소</button><button class="btn primary" data-act="bk-do">되살리기</button></div>`);
@@ -1221,9 +1294,10 @@
     let data; try { data = JSON.parse(text); } catch (e) { return toast('백업 내용이 올바르지 않아요'); }
     if (!data || !Array.isArray(data.rounds)) return toast('백업 내용이 올바르지 않아요');
     if (!(await ask('되살릴까요?', `지금 기록이 백업 내용(성적 ${data.rounds.length}개)으로 바뀌어요.`, '되살리기'))) return;
-    const keepServer = db.settings.server;
+    const keepServer = db.settings.server, keepCal = db.settings.cal;
     db = Object.assign(blank(), data, { settings: Object.assign(blank().settings, data.settings || {}) });
-    if (!db.settings.server || !db.settings.server.pass) db.settings.server = keepServer; // 백업에는 비밀번호가 없으니 지금 연결 유지
+    if (keepServer && keepServer.url) db.settings.server = keepServer; // 백업에는 서버 비밀번호가 없으니 지금 연결을 유지
+    if (!db.settings.cal || !db.settings.cal.url) db.settings.cal = keepCal || blank().settings.cal; // 백업에는 비밀번호가 없으니 지금 연결 유지
     save(); applySettings(); toast('되살렸어요'); go('home');
   }
   acts['st-wipe'] = async () => {

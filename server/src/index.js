@@ -2,10 +2,12 @@
 //   GET  /health                 연결 확인 (어떤 기능이 켜져 있는지)
 //   GET  /weather?lat=..&lon=..  기상청 날씨 (10분 저장)
 //   POST /analyze                AI 코치 분석
+//   POST /calendar               구글 캘린더 비공개 주소 → 파크골프 일정 (주소는 저장하지 않음)
 // 비밀값(wrangler secret): KMA_KEY, ANTHROPIC_API_KEY, APP_PASSCODE
 // 일반 설정(wrangler.toml [vars]): ALLOWED_ORIGINS, AI_DAILY_LIMIT
 import { kmaWeather } from './kma.js';
 import { coach, CoachError, MODEL } from './ai.js';
+import { readCalendar, checkCalendarUrl } from './calendar.js';
 
 function cors(req, env) {
   const origin = req.headers.get('Origin') || '';
@@ -95,6 +97,31 @@ export async function handle(req, env, ctx, deps = {}) {
     } catch (e) {
       if (e instanceof CoachError) return json({ error: e.message }, e.status, c.headers);
       return json({ error: 'AI 분석 중 문제가 생겼어요.' }, 500, c.headers);
+    }
+  }
+  if (url.pathname === '/calendar' && req.method === 'POST') {
+    // 구글 캘린더 비공개 iCal 주소를 대신 읽어서 파크골프 일정만 돌려줌. 주소는 저장·기록하지 않고(요청 본문으로만 받음) 바로 버린다.
+    const raw = await req.text();
+    if (raw.length > 4000) return json({ error: '보낸 내용이 너무 커요.' }, 413, c.headers);
+    let body; try { body = JSON.parse(raw); } catch { return json({ error: '요청 형식이 달라요.' }, 400, c.headers); }
+    const target = checkCalendarUrl(body.url);
+    if (!target) return json({ error: '구글 캘린더의 \'비공개 주소(iCal 형식)\'만 쓸 수 있어요. https://calendar.google.com/calendar/ical/… 로 시작하는 주소를 넣어 주세요.' }, 400, c.headers);
+    if (env.AI_LIMITER) {
+      const { success } = await env.AI_LIMITER.limit({ key: 'cal:' + (req.headers.get('CF-Connecting-IP') || 'unknown') });
+      if (!success) return json({ error: '잠깐 쉬었다가 다시 눌러 주세요.' }, 429, c.headers);
+    }
+    try {
+      const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 15000);
+      let res; try { res = await (deps.calFetch || fetch)(target, { signal: ctrl.signal, headers: { 'User-Agent': 'parkgolf-note' } }); } finally { clearTimeout(timer); }
+      if (res.status === 404 || res.status === 403 || res.status === 401) return json({ error: '캘린더를 열 수 없어요. 주소가 바뀌었거나 잘못됐을 수 있어요. 구글 캘린더에서 비공개 주소를 다시 복사해 주세요.' }, 400, c.headers);
+      if (!res.ok) return json({ error: `구글 캘린더가 응답하지 않아요(${res.status}). 잠시 뒤 다시 해 주세요.` }, 502, c.headers);
+      const text = await res.text();
+      if (text.length > 8000000) return json({ error: '캘린더가 너무 커요.' }, 413, c.headers);
+      const out = readCalendar(text, { keywords: Array.isArray(body.keywords) ? body.keywords.slice(0, 20).map(x => String(x).slice(0, 20)) : undefined, days: Number(body.days) || 365 });
+      return json({ ok: true, ...out }, 200, c.headers);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return json({ error: '구글 캘린더가 너무 오래 대답하지 않아요.' }, 504, c.headers);
+      return json({ error: e && e.message ? e.message : '캘린더를 읽는 중 문제가 생겼어요.' }, 502, c.headers);
     }
   }
   return json({ error: '없는 주소예요.' }, 404, c.headers);

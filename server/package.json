@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test test/server.test.js"
+    "test": "node --test test/server.test.js test/calendar.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.7.0"
