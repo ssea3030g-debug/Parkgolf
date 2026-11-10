@@ -3,7 +3,7 @@
 #   CLOUDFLARE_API_TOKEN   Cloudflare "Workers 편집" API 토큰
 #   CLOUDFLARE_ACCOUNT_ID  Cloudflare 계정 ID
 #   KMA_KEY                기상청 일반 인증키 (Decoding)
-#   APP_PASSCODE           할머니 폰에 넣을 비밀번호
+#   APP_PASSCODE           (선택) 할머니 폰에 넣을 비밀번호 — AI 코치를 켤 때는 권장
 #   ANTHROPIC_API_KEY      (나중에) Claude API 키 — 없으면 AI 코치만 꺼짐
 # 선택 (같은 화면 → Variables): ALLOWED_ORIGINS = 앱 주소 (예: https://아이디.github.io)
 # 비밀값을 넣은 뒤에는 Actions 탭에서 이 작업을 "Re-run all jobs" 하면 됩니다.
@@ -110,7 +110,7 @@ jobs:
           else:
               lines.append(f"- 기상청 날씨: ❌ {w.get('error', '알 수 없음')}")
           lines.append("- AI 코치: " + ("✅ 켜짐" if h.get("ai") else "꺼짐 (ANTHROPIC_API_KEY 를 넣으면 켜져요)"))
-          lines.append("- 앱 비밀번호: " + ("설정됨" if h.get("passcode") else "⚠️ 없음 — APP_PASSCODE 를 꼭 넣으세요"))
+          lines.append("- 앱 비밀번호: " + ("설정됨" if h.get("passcode") else "없음 (날씨만 쓸 때는 괜찮아요. AI 코치를 켤 때는 APP_PASSCODE 를 넣는 걸 권해요)"))
           print("\n".join(lines))
           PY
           )

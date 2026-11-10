@@ -44,7 +44,7 @@ GitHub 가 대신 올려 줍니다(`.github/workflows/server.yml`).
    | `CLOUDFLARE_API_TOKEN` | 3번 토큰 |
    | `CLOUDFLARE_ACCOUNT_ID` | 2번 계정 ID |
    | `KMA_KEY` | 기상청 **일반 인증키 (Decoding)** |
-   | `APP_PASSCODE` | 할머니 폰에 넣을 비밀번호 |
+   | `APP_PASSCODE` | (선택) 할머니 폰에 넣을 비밀번호. 날씨만 쓸 때는 없어도 되고, AI 코치를 켤 때는 권장 |
    | `ANTHROPIC_API_KEY` | (나중에) Claude 키 |
 5. 저장소 **Actions** 탭 → **서버 배포** → 가장 위 실행 → **Re-run all jobs**
 6. 끝나면 실행 화면 아래 요약에 **서버 주소**와 "기상청 날씨: ✅ 작동"이 나와요. 그 주소를 앱에 넣으면 끝.

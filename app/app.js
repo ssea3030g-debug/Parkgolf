@@ -1102,7 +1102,7 @@
     <section class="card"><h2>🔗 서버 연결 (기상청 날씨·AI 코치)</h2>
       <p class="muted small" style="margin-top:0">가족이 만들어 둔 서버 주소와 비밀번호를 한 번만 넣으면 돼요. 비워 두면 기본 날씨(Open-Meteo)와 기본 분석만 써요.</p>
       <label class="field"><span>서버 주소</span><input type="text" id="srv-url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).url || '')}" placeholder="https://parkgolf-server.아이디.workers.dev"></label>
-      <label class="field"><span>앱 비밀번호</span><input type="text" id="srv-pass" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).pass || '')}"></label>
+      <label class="field"><span>앱 비밀번호 (없으면 비워 두세요)</span><input type="text" id="srv-pass" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).pass || '')}"></label>
       <div class="btn-row"><button class="btn primary" data-act="srv-save">저장하고 확인</button><button class="btn ghost" data-act="srv-clear">연결 끊기</button></div>
       <div id="srv-status"></div></section>
     <section class="card"><h2>📱 휴대폰 화면에 앱 아이콘 만들기</h2>
