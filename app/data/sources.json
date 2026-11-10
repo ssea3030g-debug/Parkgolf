@@ -1,0 +1,174 @@
+{
+ "updated": "2026-11-10",
+ "note": "공공데이터포털 지자체·시설관리공단 파크골프장 표준데이터",
+ "sources": [
+  {
+   "id": 15113377,
+   "title": "경상남도 거창군_파크골프장",
+   "org": "경상남도 거창군",
+   "modified": "2026-08-27",
+   "url": "https://www.data.go.kr/data/15113377/fileData.do",
+   "count": 12
+  },
+  {
+   "id": 15113672,
+   "title": "서울특별시_파크골프장 현황",
+   "org": "서울특별시",
+   "modified": "2025-11-24",
+   "url": "https://www.data.go.kr/data/15113672/fileData.do",
+   "count": 12
+  },
+  {
+   "id": 15120357,
+   "title": "대구광역시 북구_파크골프장",
+   "org": "대구광역시 북구",
+   "modified": "2026-09-03",
+   "url": "https://www.data.go.kr/data/15120357/fileData.do",
+   "count": 3
+  },
+  {
+   "id": 15142153,
+   "title": "전남광주통합특별시_파크골프장현황",
+   "org": "전남광주통합특별시",
+   "modified": "2026-02-27",
+   "url": "https://www.data.go.kr/data/15142153/fileData.do",
+   "count": 41
+  },
+  {
+   "id": 15142224,
+   "title": "대구광역시_파크골프장",
+   "org": "대구광역시",
+   "modified": "2025-05-20",
+   "url": "https://www.data.go.kr/data/15142224/fileData.do",
+   "count": 6
+  },
+  {
+   "id": 15142226,
+   "title": "전북특별자치도_파크골프장 현황",
+   "org": "전북특별자치도",
+   "modified": "2025-08-13",
+   "url": "https://www.data.go.kr/data/15142226/fileData.do",
+   "count": 29
+  },
+  {
+   "id": 15142244,
+   "title": "강원특별자치도_파크골프장 현황",
+   "org": "강원특별자치도",
+   "modified": "2025-11-28",
+   "url": "https://www.data.go.kr/data/15142244/fileData.do",
+   "count": 40
+  },
+  {
+   "id": 15142265,
+   "title": "경상북도_파크골프장 현황",
+   "org": "경상북도",
+   "modified": "2026-10-21",
+   "url": "https://www.data.go.kr/data/15142265/fileData.do",
+   "count": 63
+  },
+  {
+   "id": 15142271,
+   "title": "인천광역시_파크골프장 현황",
+   "org": "인천광역시",
+   "modified": "2025-12-01",
+   "url": "https://www.data.go.kr/data/15142271/fileData.do",
+   "count": 4
+  },
+  {
+   "id": 15142311,
+   "title": "전남광주통합특별시_파크골프장 현황",
+   "org": "전남광주통합특별시",
+   "modified": "2025-11-29",
+   "url": "https://www.data.go.kr/data/15142311/fileData.do",
+   "count": 10
+  },
+  {
+   "id": 15142438,
+   "title": "세종특별자치시_파크골프장 현황",
+   "org": "세종특별자치시",
+   "modified": "2025-09-01",
+   "url": "https://www.data.go.kr/data/15142438/fileData.do",
+   "count": 7
+  },
+  {
+   "id": 15160352,
+   "title": "연천군시설관리공단_재인폭포파크골프장 표준데이터",
+   "org": "연천군시설관리공단",
+   "modified": "2026-07-14",
+   "url": "https://www.data.go.kr/data/15160352/fileData.do",
+   "count": 1
+  },
+  {
+   "id": 15160419,
+   "title": "동작구시설관리공단_파크골프장 표준데이터",
+   "org": "동작구시설관리공단",
+   "modified": "2026-07-21",
+   "url": "https://www.data.go.kr/data/15160419/fileData.do",
+   "count": 2
+  },
+  {
+   "id": 15160428,
+   "title": "가평군시설관리공단_가평파크골프장",
+   "org": "가평군시설관리공단",
+   "modified": "2026-07-21",
+   "url": "https://www.data.go.kr/data/15160428/fileData.do",
+   "count": 1
+  },
+  {
+   "id": 15160487,
+   "title": "달성군시설관리공단_파크골프장현황",
+   "org": "달성군시설관리공단",
+   "modified": "2026-07-23",
+   "url": "https://www.data.go.kr/data/15160487/fileData.do",
+   "count": 10
+  },
+  {
+   "id": 15160491,
+   "title": "서울특별시관악구시설관리공단_관악파크골프장 표준데이터",
+   "org": "서울특별시관악구시설관리공단",
+   "modified": "2026-07-23",
+   "url": "https://www.data.go.kr/data/15160491/fileData.do",
+   "count": 1
+  },
+  {
+   "id": 15160516,
+   "title": "이천시시설관리공단_파크골프장 표준데이터",
+   "org": "이천시시설관리공단",
+   "modified": "2026-07-27",
+   "url": "https://www.data.go.kr/data/15160516/fileData.do",
+   "count": 1
+  },
+  {
+   "id": 15160528,
+   "title": "세종특별자치시시설관리공단_파크골프장표준데이터",
+   "org": "세종특별자치시시설관리공단",
+   "modified": "2026-07-29",
+   "url": "https://www.data.go.kr/data/15160528/fileData.do",
+   "count": 6
+  },
+  {
+   "id": 15160548,
+   "title": "경주시시설관리공단_파크골프장 표준데이터",
+   "org": "경주시시설관리공단",
+   "modified": "2026-07-27",
+   "url": "https://www.data.go.kr/data/15160548/fileData.do",
+   "count": 3
+  },
+  {
+   "id": 15160551,
+   "title": "중랑구시설관리공단_중랑구립파크골프장 시설정보",
+   "org": "중랑구시설관리공단",
+   "modified": "2026-07-27",
+   "url": "https://www.data.go.kr/data/15160551/fileData.do",
+   "count": 1
+  },
+  {
+   "id": 15166992,
+   "title": "인천시설공단_파크골프장 운영 현황",
+   "org": "인천시설공단",
+   "modified": "2026-09-30",
+   "url": "https://www.data.go.kr/data/15166992/fileData.do",
+   "count": 4
+  }
+ ]
+}

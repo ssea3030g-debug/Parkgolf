@@ -23,7 +23,7 @@ def log(*a):
 
 
 START = time.time()
-BUDGET = 270  # 초: 전체 제한 시간
+BUDGET = int(os.environ.get('PG_BUDGET', '600'))  # 초: 전체 제한 시간
 
 
 class OutOfTime(Exception):
@@ -158,11 +158,11 @@ def decode(raw):
 
 def read_csv(text):
     rows = list(csv.reader(io.StringIO(text)))
-    # 머리글 줄 찾기: '파크골프장명' 또는 '명' 과 '위도' 가 같이 있는 첫 줄
+    # 머리글 줄 찾기: '…명' 열이 있고 주소·위치·위도 중 하나가 있는 첫 줄
     for i, r in enumerate(rows[:10]):
-        joined = ','.join(r)
-        if ('명' in joined) and ('주소' in joined or '위도' in joined):
-            head = [c.strip() for c in r]
+        head = [re.sub(r'\s', '', c) for c in r]
+        joined = ','.join(head)
+        if re.search(r'명', joined) and re.search(r'주소|위치|위도|소재지', joined):
             return [dict(zip(head, (x.strip() for x in row))) for row in rows[i + 1:] if any(x.strip() for x in row)]
     return []
 
@@ -170,7 +170,7 @@ def read_csv(text):
 def pick(row, *keys):
     for k in keys:
         for rk, v in row.items():
-            if k in rk and v and v not in ('-', 'N/A', 'null'):
+            if k in rk and v and v.strip() not in ('-', 'N/A', 'null', '없음', '해당없음', '해당 없음', '미정', '.'):
                 return v
     return ''
 
@@ -185,22 +185,43 @@ def num(s):
 
 SIDO = {'서울': '서울', '부산': '부산', '대구': '대구', '인천': '인천', '광주': '광주', '대전': '대전', '울산': '울산', '세종': '세종',
         '경기': '경기', '강원': '강원', '충북': '충북', '충청북': '충북', '충남': '충남', '충청남': '충남', '전북': '전북', '전라북': '전북',
-        '전남': '전남', '전라남': '전남', '경북': '경북', '경상북': '경북', '경남': '경남', '경상남': '경남', '제주': '제주'}
+        '전남광주': '광주·전남', '전남': '전남', '전라남': '전남', '경북': '경북', '경상북': '경북', '경남': '경남', '경상남': '경남', '제주': '제주'}
+FULL = {'서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', '인천': '인천광역시', '광주': '광주광역시', '대전': '대전광역시', '울산': '울산광역시',
+        '세종': '세종특별자치시', '경기': '경기도', '강원': '강원특별자치도', '충북': '충청북도', '충남': '충청남도', '전북': '전북특별자치도',
+        '전남': '전라남도', '경북': '경상북도', '경남': '경상남도', '제주': '제주특별자치도', '광주·전남': ''}
 
 
-def region(addr, org=''):
-    for text in (addr, org):
+def region(addr, org='', title=''):
+    sgg = ''
+    for w in [x.strip('()[],·') for x in (addr or '').split()[:5]]:
+        if re.search(r'[가-힣]{1,6}[시군구]$', w) and not re.search(r'(특별|광역|자치)시$', w) and w not in ('시', '군', '구'):
+            sgg = w
+            break
+    if not sgg:  # 주소에 없으면 제목·기관 이름 앞부분에서 (예: '동작구시설관리공단_…')
+        for text in (title, org):
+            m = re.match(r'(?:[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도)\s*)?([가-힣]{2,4}?[시군구])(?:시설|도시|체육|_|\s|$)', (text or '').strip())
+            if m and not re.search(r'(특별|광역|자치)시$', m.group(1)) and m.group(1)[:-1] not in SIDO and m.group(1) not in ('서울시', '부산시', '대구시', '인천시', '광주시', '대전시', '울산시'):
+                sgg = m.group(1)
+                break
+    for text in (addr, org, title):
         t = (text or '').strip()
         for k in sorted(SIDO, key=len, reverse=True):
             if t.startswith(k):
-                parts = t.split()
-                sgg = ''
-                for w in parts[1:4]:
-                    if re.search(r'[시군구]$', w):
-                        sgg = w
-                        break
+                if not sgg:
+                    for w in [x.strip('()[],·') for x in t.split()[1:4]]:
+                        if re.search(r'[가-힣]{1,6}[시군구]$', w) and not re.search(r'(특별|광역|자치)시$', w):
+                            sgg = w
+                            break
                 return SIDO[k], sgg
-    return '', ''
+    return '', sgg
+
+
+def holes(row):
+    v = num(pick(row, '홀수', '홀'))
+    if v:
+        return int(v)
+    m = re.search(r'(\d+)\s*홀', pick(row, '규모', '시설규모', '비고'))
+    return int(m.group(1)) if m else None
 
 
 def closed_days(text):
@@ -223,11 +244,12 @@ def hours(text):
     return f'{int(a):02d}:{int(b or 0):02d}', f'{int(c):02d}:{int(d or 0):02d}'
 
 
-def convert(row, src):
-    name = pick(row, '파크골프장명', '시설명', '명칭')
+def convert(row, src, title=''):
+    row = {re.sub(r'\s', '', k): v for k, v in row.items()}
+    name = pick(row, '파크골프장명', '시설명', '업장명', '구장명', '명칭')
     if not name:
         return None
-    road = pick(row, '소재지도로명주소', '도로명주소')
+    road = pick(row, '소재지도로명주소', '도로명주소', '주소', '위치', '소재지')
     jibun = pick(row, '소재지지번주소', '지번주소')
     addr = road or jibun
     la, lo = num(pick(row, '위도')), num(pick(row, '경도'))
@@ -236,21 +258,64 @@ def convert(row, src):
             la, lo = lo, la
         else:
             la = lo = None
-    org = pick(row, '운영기관명', '관리기관명', '제공기관')
-    sido, sgg = region(addr, org)
-    open_text = pick(row, '운영시간', '이용시간', '개방시간')
-    close_text = pick(row, '휴무일', '휴장일', '휴관일')
+    org = pick(row, '운영기관명', '관리기관명', '운영기관', '제공기관')
+    sido, sgg = region(addr, org, title)
+    open_text = pick(row, '운영시간', '이용시간', '개방시간', '이용가능시간')
+    close_text = pick(row, '휴무일', '휴장일', '휴관일', '비고')
     o, c = hours(open_text)
     item = {
         'n': name, 'a': addr, 'sd': sido, 'sg': sgg,
         'la': round(la, 6) if la is not None else None, 'lo': round(lo, 6) if lo is not None else None,
-        'h': int(num(pick(row, '홀수')) or 0) or None, 'cs': int(num(pick(row, '코스수')) or 0) or None,
+        'h': holes(row), 'cs': int(num(pick(row, '코스수')) or 0) or None,
         'ot': open_text, 'o': o, 'c': c, 'ct': close_text, 'cd': closed_days(close_text),
-        'fee': pick(row, '이용요금', '요금'), 'tel': pick(row, '전화번호', '문의전화', '연락처'),
-        'rs': pick(row, '예약방식'), 'rl': pick(row, '예약처링크', '예약링크', '홈페이지'),
+        'fee': pick(row, '이용요금', '요금', '사용료'), 'tel': pick(row, '예약문의전화번호', '전화번호', '문의전화', '연락처', '전화'),
+        'rs': pick(row, '예약방식', '예약방법'), 'rl': pick(row, '예약처링크', '예약링크', '홈페이지'),
         'org': org, 'sr': src, 'dt': pick(row, '데이터기준일자'),
     }
     return {k: v for k, v in item.items() if v not in ('', None, [])}
+
+
+GEO_FILE = os.path.join(CACHE_DIR, 'geo.json')
+AMBIGUOUS = {'중구', '서구', '동구', '남구', '북구', '강서구', '동래구'}
+
+
+def geocode_missing(items):
+    """좌표가 없는 곳은 '시도 시군구' 중심 좌표로 채우고 ap=1(대략적 위치)로 표시. 지도 서비스(Nominatim) 1초에 1번."""
+    geo = json.load(open(GEO_FILE, encoding='utf-8')) if os.path.exists(GEO_FILE) else {}
+    todo = sorted({(x.get('sd', ''), x.get('sg', '')) for x in items if (x.get('la') is None or not x.get('sd')) and x.get('sg')})
+    log(f'좌표가 없는 시·군·구: {len(todo)}곳')
+    for sd, sg in todo:
+        key = f'{sd}|{sg}'
+        if key in geo or time.time() - START > BUDGET:
+            continue
+        if not sd and sg in AMBIGUOUS:
+            continue  # 중구·서구처럼 같은 이름이 여러 곳이면 시도를 모르는 채로는 찾지 않는다
+        q = f"{FULL.get(sd, '')} {sg}".strip() if sd != '광주·전남' else sg
+        try:
+            body, _ = get('https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode(
+                {'q': q, 'format': 'jsonv2', 'limit': 1, 'countrycodes': 'kr', 'accept-language': 'ko', 'addressdetails': 1}), tries=2)
+            r = json.loads(body)
+            if r:
+                ad = r[0].get('address') or {}
+                short = next((k for k, v in FULL.items() if v and v in (ad.get('province'), ad.get('state'), ad.get('city'), ad.get('region'))), '')
+                geo[key] = [float(r[0]['lat']), float(r[0]['lon']), short]
+            else:
+                geo[key] = None
+        except OutOfTime:
+            break
+        except Exception as e:
+            log(f'  위치 찾기 실패 {q}: {e}')
+        time.sleep(1.2)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    json.dump(geo, open(GEO_FILE, 'w', encoding='utf-8'), ensure_ascii=False)
+    for x in items:
+        g = geo.get(f"{x.get('sd', '')}|{x.get('sg', '')}")
+        if g:
+            if x.get('la') is None:
+                x['la'], x['lo'] = round(g[0], 4), round(g[1], 4)
+                x['ap'] = 1
+            if not x.get('sd') and len(g) > 2 and g[2]:
+                x['sd'] = g[2]
 
 
 def main():
@@ -308,7 +373,7 @@ def main():
                 continue
         n0 = len(items)
         for row in got:
-            it = convert(row, pk)
+            it = convert(row, pk, title)
             if it:
                 items.append(it)
         log(f'- [{pk}] ✅ {title[:50]} — {len(items) - n0}곳')
@@ -327,6 +392,7 @@ def main():
     for i, it in enumerate(uniq, 1):
         it['i'] = i
 
+    geocode_missing(uniq)
     with_geo = sum(1 for x in uniq if x.get('la') is not None)
     log(f'\n합계: {len(uniq)}곳 (좌표 있음 {with_geo}곳) · 자료 {len(sources)}개 · 실패/제외 {len(ids) - len(sources)}개')
     if not uniq:

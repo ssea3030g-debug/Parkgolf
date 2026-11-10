@@ -409,7 +409,39 @@
     return out;
   }
 
-  const api = { DEFAULT_PARS, SECTION_NAMES, sum, avg, round1, sign, signF, scoreName, roundTotals, allHoles, weatherFlags, parTypeStats, analyzeRound, analyzeOverall, betTotals, settleBet, minimizeTransfers, completedHoles };
+
+  /* ── 전국 파크골프장 목록 검색 ─────────────────────
+   * items: data/courses.json 의 items (n 이름, a 주소, sd 시도, sg 시군구, org 운영기관 …)
+   * q: "경북 포항", "반포", "경상북도 영천 파크골프장" 처럼 띄어 쓴 낱말 — 모든 낱말이 이름·주소·지역 어딘가에 들어 있어야 함
+   */
+  const SIDO_ALIAS = { 서울특별시: '서울', 부산광역시: '부산', 대구광역시: '대구', 인천광역시: '인천', 광주광역시: '광주', 대전광역시: '대전', 울산광역시: '울산', 세종특별자치시: '세종',
+    경기도: '경기', 강원특별자치도: '강원', 강원도: '강원', 충청북도: '충북', 충청남도: '충남', 전북특별자치도: '전북', 전라북도: '전북', 전라남도: '전남', 경상북도: '경북', 경상남도: '경남', 제주특별자치도: '제주' };
+  const GENERIC = /^(파크골프장?|골프장|파크|구장)$/;
+  const normS = x => String(x == null ? '' : x).replace(/\s+/g, '').toLowerCase();
+  function findCourses(items, q, region) {
+    const list = (items || []).filter(x => !region || x.sd === region);
+    let toks = String(q || '').trim().split(/\s+/).filter(Boolean).map(t => SIDO_ALIAS[t] || t);
+    const specific = toks.filter(t => !GENERIC.test(t));
+    if (specific.length) toks = specific;
+    toks = toks.map(normS).filter(Boolean);
+    if (!toks.length) return list;
+    const out = [];
+    for (const x of list) {
+      const hay = normS([x.sd, x.sg, x.a, x.n, x.org].join(' '));
+      const name = normS(x.n);
+      let sc = 0, ok = true;
+      for (const t of toks) { if (!hay.includes(t)) { ok = false; break; } sc += name.includes(t) ? 3 : 1; }
+      if (ok) out.push({ x, sc });
+    }
+    return out.sort((a, b) => b.sc - a.sc || (a.x.i || 0) - (b.x.i || 0)).map(o => o.x);
+  }
+  function regionCounts(items) {
+    const m = {};
+    for (const x of items || []) m[x.sd || '기타'] = (m[x.sd || '기타'] || 0) + 1;
+    return Object.entries(m).sort((a, b) => (a[0] === '기타') - (b[0] === '기타') || b[1] - a[1]);
+  }
+
+  const api = { findCourses, regionCounts, DEFAULT_PARS, SECTION_NAMES, sum, avg, round1, sign, signF, scoreName, roundTotals, allHoles, weatherFlags, parTypeStats, analyzeRound, analyzeOverall, betTotals, settleBet, minimizeTransfers, completedHoles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PG = api;
 })(this);

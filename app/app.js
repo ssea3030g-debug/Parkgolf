@@ -725,10 +725,20 @@
   acts['bet-again'] = el => { const b = byId(db.bets, el.dataset.id); bdraft = null; window._betPrefill = { players: [...b.players], unit: b.unit, mode: b.mode, carry: b.carry, bonus: b.bonus, totalsOnly: b.totalsOnly, nHoles: b.pars.length, place: b.place }; go('bet-new'); };
 
   /* ════════════════ 골프장 ════════════════ */
-  let searchState = { q: '', results: null, loading: false, err: '' };
+  /* 전국 파크골프장 목록 (data/courses.json — 공공데이터포털 자료를 모은 것) */
+  let GL = null; // null: 아직 안 불러옴, false: 없음/실패
+  async function loadGL() {
+    if (GL !== null) return GL;
+    try { const r = await fetch('data/courses.json'); if (!r.ok) throw new Error('no'); GL = await r.json(); } catch (e) { GL = false; }
+    return GL;
+  }
+  const SIDO_START = /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주)/;
+  const localAddr = x => { const a = x.a || ''; return x.sd && !SIDO_START.test(a) ? `${x.sd} ${a}`.trim() : a; };
+  const freshSearch = () => ({ q: '', region: '', limit: 20, results: null, near: null, loading: false, err: '' });
+  let searchState = freshSearch();
   views.courses = () => {
     let html = `<section class="card"><h2>골프장 찾기</h2>
-      <div class="row"><input type="search" id="cs-q" class="grow" style="flex:1;min-width:0" placeholder="예) 반포, 송도, OO파크골프장" value="${esc(searchState.q)}" enterkeyhint="search"><button class="btn primary" data-act="cs-search">찾기</button></div>
+      <div class="row"><input type="search" id="cs-q" class="grow" style="flex:1;min-width:0" placeholder="예) 포항, 경북 영천, 반포" value="${esc(searchState.q)}" enterkeyhint="search"><button class="btn primary" data-act="cs-search">찾기</button></div>
       <div style="height:10px"></div><button class="btn block" data-act="cs-near">내 주변 골프장 찾기</button>
       <div id="cs-results">${searchResultsHtml()}</div>
       <a class="btn ghost block" href="#course-new" style="margin-top:10px">직접 입력해서 추가</a></section>`;
@@ -738,37 +748,97 @@
     } else html += `<div class="empty"><span class="ico">${I('flag')}</span>자주 가는 골프장을 찾아 추가해 두면<br>날씨와 운영 상황을 바로 볼 수 있어요.</div>`;
     return { title: '골프장', html, after: () => {
       const q = $('#cs-q'); q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acts['cs-search'](); } });
+      loadGL().then(() => paintResults());
       db.courses.forEach(async c => {
         const el = document.querySelector(`[data-mini="${c.id}"]`); if (!el || c.lat == null) return;
         try { const d = await courseNow(c); el.innerHTML = `${WX.wxIcon(d.w.current.weather_code)} ${Math.round(d.w.current.temperature_2m)}℃<br><span class="tag ${['good', 'warn', 'bad'][d.status.level]}">${d.status.label}</span>`; } catch (e) { el.textContent = ''; }
       });
     } };
   };
+  function localRow(x, extra) {
+    const addr = localAddr(x), have = db.courses.find(c => c.name === x.n && (c.address || '') === addr);
+    const bits = [addr || '주소 없음', x.h ? `${x.h}홀` : '', extra || ''].filter(Boolean).join(' · ');
+    return `<li><button class="item" data-act="cs-add-local" data-i="${x.i}"><span class="ico">${I(have ? 'check' : 'plus')}</span><span class="main"><span class="title">${esc(x.n)}</span><span class="sub">${esc(bits)}</span></span></button></li>`;
+  }
   function searchResultsHtml() {
-    const s = searchState;
-    if (s.loading) return `<p class="muted"><span class="spinner"></span> 찾는 중…</p>`;
-    if (s.err) return `<div class="note bad">${esc(s.err)}</div>`;
-    if (!s.results) return '';
-    if (!s.results.length) return `<div class="note warn"><b>찾지 못했어요</b>동네 이름만 넣어 보거나, '직접 입력해서 추가'를 눌러 주세요.</div>`;
-    return `<h3>찾은 곳 (${s.results.length}곳) — 눌러서 추가</h3><ul class="list">${s.results.map((r, i) => {
-      const have = db.courses.find(c => c.name === r.name);
-      return `<li><button class="item" data-act="cs-add" data-i="${i}"><span class="ico">${I(have ? 'check' : 'plus')}</span><span class="main"><span class="title">${esc(r.name)}</span><span class="sub">${esc(r.address || '')}${r.dist != null ? ` · ${r.dist.toFixed(1)}km` : ''}</span></span></button></li>`;
-    }).join('')}</ul>`;
+    const s = searchState; let h = '';
+    if (GL && GL.items) {
+      const regs = PG.regionCounts(GL.items);
+      const chips = `<h3>지역으로 찾기</h3><div class="chips">${regs.map(([r, n]) => `<button type="button" class="chip" data-act="cs-region" data-v="${esc(r)}" aria-pressed="${s.region === r}">${esc(r)} ${n}</button>`).join('')}</div>`;
+      const active = !!(s.near || s.q || s.region);
+      if (!active) h += chips;
+      if (s.near) {
+        h += `<h3>내 주변 파크골프장 (가까운 순)</h3><ul class="list">${s.near.map(o => localRow(o.x, `${o.d.toFixed(1)}km${o.x.ap ? ' (대략)' : ''}`)).join('')}</ul>`;
+      } else if (s.q || s.region) {
+        const list = PG.findCourses(GL.items, s.q, s.region), shown = list.slice(0, s.limit);
+        h += `<h3>${s.region ? esc(s.region) + ' · ' : ''}전국 목록에서 ${list.length}곳 — 눌러서 추가</h3>`;
+        h += list.length ? `<ul class="list">${shown.map(x => localRow(x)).join('')}</ul>${list.length > shown.length ? `<button class="btn ghost block" data-act="cs-more">더 보기 (${list.length - shown.length}곳 남음)</button>` : ''}`
+          : `<div class="note warn"><b>목록에 없어요</b>아래 '지도에서 더 찾기'를 누르거나 '직접 입력해서 추가'를 눌러 주세요.</div>`;
+        if (s.q) h += `<button class="btn block" data-act="cs-osm" style="margin-top:10px">지도에서 더 찾기</button>`;
+      }
+      if (active) h += chips; // 검색 중에는 결과를 먼저, 지역 버튼은 그 아래
+      h += `<p class="muted small">전국 목록 ${GL.count}곳 · ${esc(GL.updated)} 기준 · 출처: 공공데이터포털(각 지자체·시설관리공단). 아직 자료가 없는 지역도 있어서 목록에 없는 곳이 있을 수 있어요.</p>`;
+    }
+    if (s.loading) return h + `<p class="muted"><span class="spinner"></span> 찾는 중…</p>`;
+    if (s.err) h += `<div class="note bad">${esc(s.err)}</div>`;
+    if (s.results) {
+      if (!s.results.length) h += `<div class="note warn"><b>지도에서도 찾지 못했어요</b>동네 이름만 넣어 보거나, '직접 입력해서 추가'를 눌러 주세요.</div>`;
+      else h += `<h3>지도에서 찾은 곳 (${s.results.length}곳) — 눌러서 추가</h3><ul class="list">${s.results.map((r, i) => {
+        const have = db.courses.find(c => c.name === r.name);
+        return `<li><button class="item" data-act="cs-add" data-i="${i}"><span class="ico">${I(have ? 'check' : 'plus')}</span><span class="main"><span class="title">${esc(r.name)}</span><span class="sub">${esc(r.address || '')}${r.dist != null ? ` · ${r.dist.toFixed(1)}km` : ''}</span></span></button></li>`;
+      }).join('')}</ul>`;
+    }
+    return h;
   }
   const paintResults = () => { const el = $('#cs-results'); if (el) el.innerHTML = searchResultsHtml(); };
-  acts['cs-search'] = async () => {
-    const q = $('#cs-q').value.trim(); if (!q) return toast('찾을 이름을 넣어 주세요');
-    searchState = { q, results: null, loading: true, err: '' }; paintResults();
-    try { searchState.results = await WX.searchCourses(q); } catch (e) { searchState.err = '인터넷 연결을 확인해 주세요.'; }
+  async function runOsm(q) {
+    searchState.loading = true; paintResults();
+    try { searchState.results = await WX.searchCourses(q); searchState.err = ''; } catch (e) { searchState.err = '인터넷 연결을 확인해 주세요.'; }
     searchState.loading = false; paintResults();
+  }
+  acts['cs-search'] = async () => {
+    const q = $('#cs-q').value.trim();
+    if (!q && !searchState.region) return toast('찾을 이름이나 지역을 넣어 주세요');
+    Object.assign(searchState, { q, limit: 20, results: null, near: null, err: '' });
+    const g = await loadGL();
+    if (g && g.items && PG.findCourses(g.items, q, searchState.region).length) return paintResults();
+    if (!q) return paintResults();
+    runOsm(q); // 목록에 없으면 지도에서도 찾기
   };
+  acts['cs-osm'] = () => { if (searchState.q) runOsm(searchState.q); };
+  acts['cs-region'] = el => {
+    const v = el.dataset.v; searchState.region = searchState.region === v ? '' : v;
+    Object.assign(searchState, { limit: 20, results: null, near: null, err: '', q: ($('#cs-q') || {}).value ? $('#cs-q').value.trim() : '' });
+    paintResults();
+  };
+  acts['cs-more'] = () => { searchState.limit += 30; paintResults(); };
   acts['cs-near'] = () => {
     if (!navigator.geolocation) return toast('위치 기능을 쓸 수 없어요');
-    searchState = { q: '', results: null, loading: true, err: '' }; paintResults();
+    Object.assign(searchState, { results: null, near: null, err: '', loading: true }); paintResults();
     navigator.geolocation.getCurrentPosition(async pos => {
-      try { searchState.results = await WX.nearbyCourses(pos.coords.latitude, pos.coords.longitude, 15); } catch (e) { searchState.err = '주변 골프장을 불러오지 못했어요. 잠시 뒤 다시 해 주세요.'; }
+      const g = await loadGL(), la = pos.coords.latitude, lo = pos.coords.longitude;
+      if (g && g.items) {
+        searchState.near = g.items.filter(x => x.la != null).map(x => ({ x, d: WX.distKm(la, lo, x.la, x.lo) })).sort((a, b) => a.d - b.d).slice(0, 15);
+      } else {
+        try { searchState.results = await WX.nearbyCourses(la, lo, 15); } catch (e) { searchState.err = '주변 골프장을 불러오지 못했어요. 잠시 뒤 다시 해 주세요.'; }
+      }
       searchState.loading = false; paintResults();
     }, () => { searchState.loading = false; searchState.err = '위치 사용을 허용해 주세요. (휴대폰 설정 → 위치)'; paintResults(); }, { timeout: 15000 });
+  };
+  function afterAdd(c) {
+    if (window._returnTo === 'round-new' && draft) { draft.courseId = c.id; draft.sections = []; setSections(draft, draft.nSec); window._returnTo = null; return go('round-new'); }
+    go('course-' + c.id);
+  }
+  acts['cs-add-local'] = el => {
+    const x = (GL && GL.items || []).find(i => i.i === Number(el.dataset.i)); if (!x) return;
+    const addr = localAddr(x);
+    let c = db.courses.find(k => k.name === x.n && (k.address || '') === addr);
+    if (!c) {
+      const memo = [x.h && `홀 수: ${x.h}홀${x.cs ? ` (${x.cs}코스)` : ''}`, x.ot && '운영시간: ' + x.ot, x.ct && '휴무일: ' + x.ct, x.fee && '이용요금: ' + x.fee, x.rs && '예약: ' + x.rs, x.rl && '예약 링크: ' + x.rl].filter(Boolean).join('\n');
+      c = { id: uid(), name: x.n, address: addr, lat: x.la != null ? x.la : null, lon: x.lo != null ? x.lo : null, phone: x.tel || '', fav: !db.courses.length, info: { closedDays: x.cd || [], open: x.o || '', close: x.c || '' }, features: {}, memo, approx: !!x.ap };
+      db.courses.push(c); save(); toast('내 골프장에 추가했어요');
+    }
+    afterAdd(c);
   };
   acts['cs-add'] = el => {
     const r = searchState.results[Number(el.dataset.i)];
@@ -777,8 +847,7 @@
       c = { id: uid(), name: r.name, address: r.address, lat: r.lat, lon: r.lon, phone: r.phone || '', fav: !db.courses.length, info: { closedDays: [], open: '', close: '' }, features: {}, memo: r.hours ? '운영시간(지도 정보): ' + r.hours : '' };
       db.courses.push(c); save(); toast('내 골프장에 추가했어요');
     }
-    if (window._returnTo === 'round-new' && draft) { draft.courseId = c.id; draft.sections = []; setSections(draft, draft.nSec); window._returnTo = null; return go('round-new'); }
-    go('course-' + c.id);
+    afterAdd(c);
   };
   acts['cs-return'] = el => { const t = window._returnTo; window._returnTo = null; go(t); };
 
@@ -794,6 +863,7 @@
       <div class="btn-row">${c.phone ? `<a class="btn primary" href="tel:${esc(c.phone.replace(/[^0-9+]/g, ''))}">전화하기</a>` : `<a class="btn ghost" href="#course-edit-${c.id}">전화번호 넣기</a>`}<a class="btn" href="${kakao}" target="_blank" rel="noopener">지도 보기</a></div>
       ${c.phone ? `<p class="center muted small">${esc(c.phone)}</p>` : ''}<p class="center small"><a href="${naver}" target="_blank" rel="noopener">네이버 지도에서 찾기</a></p></section>
       <section class="card"><h2>오늘 운영 상황 (예상)</h2><div id="cwx">${c.lat != null ? '<p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p>' : `<p class="muted">위치가 없어 날씨를 볼 수 없어요.</p><a class="btn block" href="#course-edit-${c.id}">위치 찾기</a>`}</div>
+      ${c.approx ? '<p class="muted small">정확한 위치 자료가 없어 이 지역(시·군·구)의 중심 위치로 날씨를 보고 있어요.</p>' : ''}
       <p class="muted small">날씨와 휴장일로 짐작한 것이에요. 대회·공사로 쉴 수도 있으니 가기 전에 꼭 전화로 확인하세요.</p></section>`;
     html += `<section class="card"><h2>골프장 특징</h2>
       ${missing ? `<div class="note info"><b>정보를 채워 주세요</b>잔디·경사·휴장일을 넣으면 운영 예상과 성적 분석이 더 정확해져요.</div>` : ''}

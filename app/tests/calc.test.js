@@ -117,3 +117,21 @@ test('기상청 자료 합치기: 지금·시간별은 덮고, 해 뜨는 시간
   assert.strictEqual(only.current.apparent_temperature, 12);
   assert.strictEqual(WX.mergeKma(om, null), om);
 });
+
+test('전국 파크골프장 목록 검색', () => {
+  const items = [
+    { i: 1, n: '형산강 파크골프장', a: '포항시 북구 OO로', sd: '경북', sg: '포항시' },
+    { i: 2, n: '여의도한강 파크골프장', a: '영등포구 여의동로', sd: '서울', sg: '영등포구' },
+    { i: 3, n: '영천 금호강 파크골프장', a: '영천시 금호읍', sd: '경북', sg: '영천시' },
+    { i: 4, n: '가평파크골프장', a: '가평군 가평읍', sd: '경기', sg: '가평군' },
+  ];
+  const names = (q, r) => PG.findCourses(items, q, r).map(x => x.n);
+  assert.deepStrictEqual(names('포항'), ['형산강 파크골프장']);
+  assert.deepStrictEqual(names('경상북도 영천 파크골프장'), ['영천 금호강 파크골프장']); // 정식 시도 이름·'파크골프장' 낱말 무시
+  assert.strictEqual(names('경북').length, 2);
+  assert.strictEqual(names('서울특별시')[0], '여의도한강 파크골프장');
+  assert.strictEqual(names('파크골프장').length, 4); // 일반 낱말만 있으면 전체
+  assert.deepStrictEqual(names('', '서울'), ['여의도한강 파크골프장']);
+  assert.deepStrictEqual(names('없는곳'), []);
+  assert.deepStrictEqual(PG.regionCounts(items)[0], ['경북', 2]);
+});
