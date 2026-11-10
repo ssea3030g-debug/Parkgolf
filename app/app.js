@@ -4,6 +4,10 @@
   const $ = s => document.querySelector(s);
   const app = $('#app');
 
+  /* ── 아이콘 (선 모양, 글자색을 따라감) ───────────── */
+  const ICONS = {"home": "<path d=\"M3 11l9-8 9 8\"/><path d=\"M5 10v10h14V10\"/><path d=\"M10 20v-6h4v6\"/>", "note": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"3\"/><path d=\"M9 8h6M9 12h6M9 16h3\"/>", "coin": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M9.5 9.5c.4-1 1.4-1.5 2.5-1.5 1.5 0 2.5.8 2.5 1.8 0 2.4-5 1.2-5 4 0 1 1 1.8 2.5 1.8 1.1 0 2.1-.5 2.5-1.5\"/><path d=\"M12 6.5V8m0 8v1.5\"/>", "flag": "<path d=\"M6 21V4\"/><path d=\"M6 5h12l-3 4 3 4H6\"/>", "cal": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"3\"/><path d=\"M3 10h18M8 3v4M16 3v4\"/>", "chart": "<path d=\"M4 20v-9M10 20V4M16 20v-6M21 20H3\"/>", "bag": "<rect x=\"4\" y=\"3\" width=\"16\" height=\"18\" rx=\"3\"/><path d=\"m8.5 12 2.5 2.5 4.5-5\"/>", "run": "<circle cx=\"12\" cy=\"5\" r=\"2.2\"/><path d=\"M12 8v5m-5-3 5-2 5 2M9.5 21 12 13l2.5 8\"/>", "sliders": "<path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/><circle cx=\"15\" cy=\"7\" r=\"2\"/><circle cx=\"9\" cy=\"17\" r=\"2\"/>", "cloud": "<circle cx=\"8.5\" cy=\"8.5\" r=\"3.2\"/><path d=\"M8.5 2.5V4M2.5 8.5H4M4.3 4.3l1 1M12.7 4.3l-1 1\"/><path d=\"M8 20h9a4 4 0 0 0 .5-7.97A5 5 0 0 0 8.2 12 4 4 0 0 0 8 20z\"/>", "trophy": "<path d=\"M8 4h8v6a4 4 0 0 1-8 0z\"/><path d=\"M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4\"/><path d=\"M12 14v4M8 21h8M9.5 18h5\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/>", "star": "<path d=\"m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m8 12.5 3 3 5-6\"/>", "plus": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 8v8M8 12h8\"/>", "pin": "<path d=\"M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z\"/><circle cx=\"12\" cy=\"9.5\" r=\"2.5\"/>", "smile": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8.5 14c1 1.5 2.2 2.2 3.5 2.2s2.5-.7 3.5-2.2M9 9.5h.01M15 9.5h.01\"/>", "alert": "<path d=\"M12 3 2.5 20h19z\"/><path d=\"M12 10v4M12 17.2h.01\"/>", "stop": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m9 9 6 6M15 9l-6 6\"/>", "users": "<circle cx=\"9\" cy=\"8\" r=\"3\"/><path d=\"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6\"/><circle cx=\"17\" cy=\"9\" r=\"2.4\"/><path d=\"M17 14c2.5 0 4 2 4 5\"/>", "back": "<path d=\"m15 5-7 7 7 7\"/>"};
+  const I = (n, cls) => `<svg class="i${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+
   /* ── 저장소 ─────────────────────────────────────── */
   const KEY = 'parkgolf.v1';
   const blank = () => ({ courses: [], rounds: [], bets: [], events: [], players: [], settings: { name: '', size: 'big', theme: 'auto', alarms: ['1d', '2h'], server: { url: '', pass: '' } }, checklist: { date: '', checked: {} }, aiOverall: null });
@@ -175,25 +179,25 @@
     const fav = db.courses.find(c => c.fav) || db.courses[0];
     const last = [...db.rounds].sort((a, b) => b.date.localeCompare(a.date))[0];
     const live = db.bets.find(b => b.status === 'playing');
-    let html = `<section class="card"><p class="big" style="margin:0">${name ? esc(name) + '님, ' : ''}${hello}</p><p class="muted" style="margin:4px 0 0">${fmtDate(today(), true)}</p>`;
+    let html = `<section class="card hero"><p class="big" style="margin:0">${name ? esc(name) + '님, ' : ''}${hello}</p><p class="muted" style="margin:4px 0 0">${fmtDate(today(), true)}</p>`;
     if (!name) html += `<hr><p>이름을 알려 주시면 내기 정산에 '나'로 표시돼요.</p><a class="btn block" href="#more">이름 넣기</a>`;
     html += `</section>`;
-    if (live) html += `<a class="btn primary block xl" href="#bet-play-${live.id}" style="margin-bottom:16px">💰 하던 내기 이어서 하기</a>`;
-    if (next) html += `<section class="card"><h2>📅 다음 일정 <span class="dday">${dday(next.date)}</span></h2><p class="big" style="margin:0">${esc(next.title)}</p><p>${fmtDate(next.date)} ${fmtTime(next.time)}${next.place ? ' · ' + esc(next.place) : ''}</p><a class="btn block" href="#schedule">일정 모두 보기</a></section>`;
-    if (fav) html += `<section class="card"><h2>⛳ ${esc(fav.name)} 지금</h2><div id="homeWx"><p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p></div><a class="btn block" href="#course-${fav.id}">자세히 보기</a></section>`;
-    html += `<div class="menu-grid">
-      <a href="#round-new"><span class="ico">📝</span>성적 기록하기</a>
-      <a href="#bet-new"><span class="ico">💰</span>내기 시작</a>
-      <a href="#courses"><span class="ico">🌤️</span>골프장 날씨</a>
-      <a href="#event-new"><span class="ico">📅</span>일정 추가</a>
-      <a href="#analysis"><span class="ico">📊</span>나의 분석</a>
-      <a href="#checklist"><span class="ico">🎒</span>준비물 챙기기</a>
-      <a href="#stretch"><span class="ico">🤸</span>몸풀기 체조</a>
-      <a href="#more"><span class="ico">⚙️</span>설정·백업</a>
+    if (live) html += `<a class="btn primary block xl" href="#bet-play-${live.id}" style="margin-bottom:16px">하던 내기 이어서 하기</a>`;
+    html += `<div class="menu-grid" style="margin-bottom:14px">
+      <a href="#round-new"><span class="ico">${I('note')}</span>성적 기록하기</a>
+      <a href="#bet-new"><span class="ico">${I('coin')}</span>내기 시작</a>
+      <a href="#courses"><span class="ico">${I('cloud')}</span>골프장 날씨</a>
+      <a href="#event-new"><span class="ico">${I('cal')}</span>일정 추가</a>
+      <a href="#analysis"><span class="ico">${I('chart')}</span>나의 분석</a>
+      <a href="#checklist"><span class="ico">${I('bag')}</span>준비물 챙기기</a>
+      <a href="#stretch"><span class="ico">${I('run')}</span>몸풀기 체조</a>
+      <a href="#more"><span class="ico">${I('sliders')}</span>설정·백업</a>
     </div>`;
+    if (next) html += `<section class="card"><h2>다음 일정 <span class="dday">${dday(next.date)}</span></h2><p class="big" style="margin:0">${esc(next.title)}</p><p>${fmtDate(next.date)} ${fmtTime(next.time)}${next.place ? ' · ' + esc(next.place) : ''}</p><a class="btn block" href="#schedule">일정 모두 보기</a></section>`;
+    if (fav) html += `<section class="card"><h2>${esc(fav.name)} 지금</h2><div id="homeWx"><p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p></div><a class="btn block" href="#course-${fav.id}">자세히 보기</a></section>`;
     if (last) {
       const t = PG.roundTotals(last);
-      html += `<h2 class="section-title">최근 기록</h2><ul class="list"><li><a href="#round-${last.id}"><span class="ico">${last.kind === '대회' ? '🏆' : '⛳'}</span><span class="main"><span class="title">${esc(last.title || last.courseName || '경기')}</span><span class="sub">${fmtDate(last.date)} · ${esc(last.courseName || '')}</span></span><span class="right">${t.strokes}타<br>${diffTag(t.diff)}</span></a></li></ul>`;
+      html += `<h2 class="section-title">최근 기록</h2><ul class="list"><li><a href="#round-${last.id}"><span class="ico">${I(last.kind === '대회' ? 'trophy' : 'flag')}</span><span class="main"><span class="title">${esc(last.title || last.courseName || '경기')}</span><span class="sub">${fmtDate(last.date)} · ${esc(last.courseName || '')}</span></span><span class="right">${t.strokes}타<br>${diffTag(t.diff)}</span></a></li></ul>`;
     }
     return {
       title: '파크골프 수첩', html, back: null,
@@ -207,7 +211,7 @@
     try {
       const d = await courseNow(c);
       const cur = d.w.current;
-      box.innerHTML = `<div class="status-big ${['good', 'warn', 'bad'][d.status.level]}"><span class="ico">${d.status.icon}</span><div><div class="t">${d.status.label}</div><div class="d">${esc(d.status.reasons[0])}</div></div></div>
+      box.innerHTML = `<div class="status-big ${['good', 'warn', 'bad'][d.status.level]}"><span class="ico">${I(['smile', 'alert', 'stop'][d.status.level])}</span><div><div class="t">${d.status.label}</div><div class="d">${esc(d.status.reasons[0])}</div></div></div>
         <div class="wx"><div><span class="k">날씨</span><span class="v">${WX.wxIcon(cur.weather_code)} ${WX.wxName(cur.weather_code)}</span></div><div><span class="k">기온</span><span class="v">${Math.round(cur.temperature_2m)}℃</span></div></div>`;
     } catch (e) { box.innerHTML = `<p class="muted">인터넷이 연결되지 않아 날씨를 불러오지 못했어요.</p>`; }
   }
@@ -215,13 +219,13 @@
   /* ════════════════ 성적 ════════════════ */
   views.rounds = () => {
     const rs = [...db.rounds].sort((a, b) => b.date.localeCompare(a.date));
-    let html = `<a class="btn primary block xl" href="#round-new">＋ 새 성적 기록하기</a><div style="height:10px"></div><a class="btn block" href="#analysis">📊 나의 플레이 분석 보기</a>`;
-    if (!rs.length) html += `<div class="empty"><span class="ico">📝</span>아직 기록이 없어요.<br>지난 대회 성적부터 넣어 보세요.</div>`;
+    let html = `<a class="btn primary block xl" href="#round-new">＋ 새 성적 기록하기</a><div style="height:10px"></div><a class="btn block" href="#analysis">나의 플레이 분석 보기</a>`;
+    if (!rs.length) html += `<div class="empty"><span class="ico">${I('note')}</span>아직 기록이 없어요.<br>지난 대회 성적부터 넣어 보세요.</div>`;
     else {
       html += `<h2 class="section-title">지난 기록 (${rs.length}번)</h2><ul class="list">`;
       for (const r of rs) {
         const t = PG.roundTotals(r);
-        html += `<li><a href="#round-${r.id}"><span class="ico">${r.kind === '대회' ? '🏆' : '⛳'}</span><span class="main"><span class="title">${esc(r.title || (r.kind === '대회' ? '대회' : '연습 경기'))}</span><span class="sub">${fmtDate(r.date)} · ${esc(r.courseName || '')} · ${t.holes}홀${r.rank ? ' · ' + esc(r.rank) + '등' : ''}</span></span><span class="right">${t.strokes}타<br>${diffTag(t.diff)}</span></a></li>`;
+        html += `<li><a href="#round-${r.id}"><span class="ico">${I(r.kind === '대회' ? 'trophy' : 'flag')}</span><span class="main"><span class="title">${esc(r.title || (r.kind === '대회' ? '대회' : '연습 경기'))}</span><span class="sub">${fmtDate(r.date)} · ${esc(r.courseName || '')} · ${t.holes}홀${r.rank ? ' · ' + esc(r.rank) + '등' : ''}</span></span><span class="right">${t.strokes}타<br>${diffTag(t.diff)}</span></a></li>`;
       }
       html += `</ul>`;
     }
@@ -263,7 +267,7 @@
     const c = course(d.courseId);
     let html = `<form id="roundForm">
     <section class="card"><h2>1. 어떤 경기였나요?</h2>
-      <div class="seg" role="group" aria-label="경기 종류">${['대회', '연습'].map(k => `<button type="button" class="chip" data-act="rf-kind" data-v="${k}" aria-pressed="${d.kind === k}">${k === '대회' ? '🏆 대회' : '⛳ 연습·친선'}</button>`).join('')}</div>
+      <div class="seg" role="group" aria-label="경기 종류">${['대회', '연습'].map(k => `<button type="button" class="chip" data-act="rf-kind" data-v="${k}" aria-pressed="${d.kind === k}">${k === '대회' ? '대회' : '연습·친선'}</button>`).join('')}</div>
       <div style="height:14px"></div>
       <label class="field"><span>대회 이름 (없으면 비워 두세요)</span><input type="text" id="rf-title" value="${esc(d.title)}" placeholder="예) 구청장배 파크골프 대회"></label>
       <label class="field"><span>날짜</span><input type="date" id="rf-date" value="${esc(d.date)}" max="${today()}"></label>
@@ -305,12 +309,12 @@
     </section>
     <section class="card"><h2>5. 그날 날씨</h2>
       <div id="rf-wx">${wxSummary(d.weather)}</div>
-      ${c && c.lat != null ? `<p class="muted small">저장하면 그날 날씨를 자동으로 찾아 넣어요.</p><button type="button" class="btn block" data-act="rf-wxload">🌤️ 그날 날씨 불러오기</button>` : `<p class="muted small">골프장 위치가 있으면 날씨를 자동으로 찾아 드려요. 지금은 아래에서 골라 주세요.</p>`}
+      ${c && c.lat != null ? `<p class="muted small">저장하면 그날 날씨를 자동으로 찾아 넣어요.</p><button type="button" class="btn block" data-act="rf-wxload">그날 날씨 불러오기</button>` : `<p class="muted small">골프장 위치가 있으면 날씨를 자동으로 찾아 드려요. 지금은 아래에서 골라 주세요.</p>`}
       <h3>직접 고르기 (여러 개 가능)</h3>
       <div class="chips">${['맑음', '흐림', '비', '바람', '더움', '추움'].map(k => `<button type="button" class="chip" data-act="rf-wxtag" data-v="${k}" aria-pressed="${d.wxTags.includes(k)}">${k}</button>`).join('')}</div>
     </section>
     <div class="card"><div class="row"><span class="grow big">전체</span><span class="huge" id="rf-total"></span></div></div>
-    <button type="button" class="btn primary block xl" data-act="rf-save">💾 저장하고 분석 보기</button>
+    <button type="button" class="btn primary block xl" data-act="rf-save">저장하고 분석 보기</button>
     </form>`;
     return { title, html, back: 'rounds', after: () => { updateTotals(); bindRoundInputs(); } };
   }
@@ -393,7 +397,7 @@
     el.disabled = true; el.innerHTML = '<span class="spinner"></span> 불러오는 중…';
     try { draft.weather = await WX.dayWeather(c.lat, c.lon, draft.date); $('#rf-wx').innerHTML = wxSummary(draft.weather); toast('그날 날씨를 넣었어요'); }
     catch (e) { toast('날씨를 불러오지 못했어요. 직접 골라 주세요.'); }
-    el.disabled = false; el.textContent = '🌤️ 그날 날씨 다시 불러오기';
+    el.disabled = false; el.textContent = '그날 날씨 다시 불러오기';
   };
   acts['rf-save'] = async el => {
     readRoundInputs();
@@ -418,7 +422,7 @@
     const c = course(r.courseId);
     const a = PG.analyzeRound(r, db.rounds, c);
     const t = a.totals;
-    let html = `<section class="card center"><p style="margin:0">${r.kind === '대회' ? '🏆 대회' : '⛳ 연습·친선'}${r.rank ? ` · <b>${esc(r.rank)}등</b>` : ''}</p>
+    let html = `<section class="card center"><p style="margin:0">${r.kind === '대회' ? '대회' : '연습·친선'}${r.rank ? ` · <b>${esc(r.rank)}등</b>` : ''}</p>
       <h2 style="font-size:1.25rem;margin:6px 0">${esc(r.title || r.courseName || '경기')}</h2>
       <p class="muted" style="margin:0">${fmtDate(r.date, true)}${r.courseName ? ' · ' + esc(r.courseName) : ''}</p>
       <p class="huge" style="margin:12px 0 4px">${t.strokes}타</p><p class="big" style="margin:0">${diffTag(t.diff)} <span class="muted small">(기준 ${t.par}타 · ${t.holes}홀)</span></p></section>`;
@@ -435,21 +439,21 @@
     if (aiOn()) html += `<h2 class="section-title">기본 분석</h2>`;
     html += analysisCards(a.good, a.improve, a.practice, a.factors);
     if (r.memo) html += `<section class="card"><h2>메모</h2><p style="white-space:pre-wrap">${esc(r.memo)}</p></section>`;
-    html += `<div class="btn-row"><button class="btn" data-act="speak-round" data-id="${r.id}">🔊 소리로 듣기</button><button class="btn" data-act="share-round" data-id="${r.id}">📤 보내기</button></div><div style="height:10px"></div>
-      <div class="btn-row"><a class="btn ghost" href="#round-edit-${r.id}">✏️ 고치기</a><button class="btn danger" data-act="del-round" data-id="${r.id}">🗑️ 지우기</button></div>`;
+    html += `<div class="btn-row"><button class="btn" data-act="speak-round" data-id="${r.id}">소리로 듣기</button><button class="btn" data-act="share-round" data-id="${r.id}">보내기</button></div><div style="height:10px"></div>
+      <div class="btn-row"><a class="btn ghost" href="#round-edit-${r.id}">고치기</a><button class="btn danger" data-act="del-round" data-id="${r.id}">지우기</button></div>`;
     return { title: '성적 분석', html, back: 'rounds' };
   };
   /* ── AI 코치 ── */
   const aiNoteRound = '경기 기록·날씨·골프장 특징·지난 기록을 함께 보고 AI가 자세히 알려 드려요. 20~40초 걸려요.';
   function aiRoundBox(r) {
-    if (r.ai && r.ai.result) return aiCards(r.ai.result, r.ai.at) + `<div class="btn-row"><button class="btn" data-act="ai-speak" data-kind="round" data-id="${r.id}">🔊 듣기</button><button class="btn ghost" data-act="ai-round" data-id="${r.id}">🔄 다시 받기</button></div>`;
-    return `<h2>🤖 AI 코치</h2><p>${aiNoteRound}</p><button class="btn primary block xl" data-act="ai-round" data-id="${r.id}">🤖 AI 코치에게 분석받기</button>`;
+    if (r.ai && r.ai.result) return aiCards(r.ai.result, r.ai.at) + `<div class="btn-row"><button class="btn" data-act="ai-speak" data-kind="round" data-id="${r.id}">듣기</button><button class="btn ghost" data-act="ai-round" data-id="${r.id}">다시 받기</button></div>`;
+    return `<h2>AI 코치</h2><p>${aiNoteRound}</p><button class="btn primary block xl" data-act="ai-round" data-id="${r.id}">AI 코치에게 분석받기</button>`;
   }
   function aiCards(res, at) {
     const items = (arr, cls) => (arr || []).map(g => `<div class="note ${cls}"><b>${esc(g.title)}</b>${esc(g.detail)}</div>`).join('');
-    return `<h2>🤖 AI 코치 분석</h2><p style="font-size:1.05rem;font-weight:700">${esc(res.summary)}</p>
-      <h3>👍 잘한 점</h3>${items(res.good, 'good')}<h3>💡 보완할 점</h3>${items(res.improve, 'warn')}<h3>🏌️ 연습 과제</h3>${items(res.practice, 'info')}
-      ${res.encouragement ? `<p class="big" style="font-size:1.05rem;color:var(--primary)">💚 ${esc(res.encouragement)}</p>` : ''}
+    return `<h2>AI 코치 분석</h2><p style="font-size:1.05rem;font-weight:700">${esc(res.summary)}</p>
+      <h3>잘한 점</h3>${items(res.good, 'good')}<h3>보완할 점</h3>${items(res.improve, 'warn')}<h3>연습 과제</h3>${items(res.practice, 'info')}
+      ${res.encouragement ? `<p class="big" style="font-size:1.05rem;color:var(--primary)">${esc(res.encouragement)}</p>` : ''}
       <p class="muted small">AI가 쓴 분석이라 틀린 부분이 있을 수 있어요.${at ? ' · ' + fmtDate(WX.ymd(new Date(at))) + ' 받음' : ''}</p>`;
   }
   const aiText = res => `${res.summary} 잘한 점. ${(res.good || []).map(g => g.title + '. ' + g.detail).join(' ')} 보완할 점. ${(res.improve || []).map(g => g.title + '. ' + g.detail).join(' ')} 연습 과제. ${(res.practice || []).map(g => g.title + '. ' + g.detail).join(' ')} ${res.encouragement || ''}`;
@@ -491,17 +495,17 @@
     const o = db.aiOverall;
     if (o && o.result) {
       const stale = o.count !== db.rounds.length ? `<div class="note info">그 뒤로 기록이 ${Math.abs(db.rounds.length - o.count)}개 바뀌었어요. ‘다시 받기’를 누르면 새로 분석해요.</div>` : '';
-      return aiCards(o.result, o.at) + stale + `<div class="btn-row"><button class="btn" data-act="ai-speak" data-kind="overall">🔊 듣기</button><button class="btn ghost" data-act="ai-overall">🔄 다시 받기</button></div>`;
+      return aiCards(o.result, o.at) + stale + `<div class="btn-row"><button class="btn" data-act="ai-speak" data-kind="overall">듣기</button><button class="btn ghost" data-act="ai-overall">다시 받기</button></div>`;
     }
-    return `<h2>🤖 AI 코치 종합 분석</h2><p>지금까지 기록 전체를 보고 플레이 스타일과 앞으로 집중할 점을 알려 드려요. 20~40초 걸려요.</p><button class="btn primary block xl" data-act="ai-overall">🤖 AI 코치에게 종합 분석받기</button>`;
+    return `<h2>AI 코치 종합 분석</h2><p>지금까지 기록 전체를 보고 플레이 스타일과 앞으로 집중할 점을 알려 드려요. 20~40초 걸려요.</p><button class="btn primary block xl" data-act="ai-overall">AI 코치에게 종합 분석받기</button>`;
   }
 
   function analysisCards(good, improve, practice, factors) {
     let h = '';
-    if (factors && factors.length) h += `<section class="card"><h2>🔎 그날의 상황</h2>${factors.map(f => `<p>• ${esc(f)}</p>`).join('')}</section>`;
-    h += `<section class="card"><h2>👍 잘한 점</h2>${good.map(g => `<div class="note good"><b>${esc(g.t)}</b>${esc(g.d)}</div>`).join('')}</section>`;
-    h += `<section class="card"><h2>💡 보완할 점</h2>${improve.map(g => `<div class="note warn"><b>${esc(g.t)}</b>${esc(g.d)}</div>`).join('')}</section>`;
-    h += `<section class="card"><h2>🏌️ 다음 연습 과제</h2>${practice.map((p, i) => `<div class="note info"><b>${i + 1}.</b>${esc(p)}</div>`).join('')}</section>`;
+    if (factors && factors.length) h += `<section class="card"><h2>그날의 상황</h2>${factors.map(f => `<p>• ${esc(f)}</p>`).join('')}</section>`;
+    h += `<section class="card"><h2>잘한 점</h2>${good.map(g => `<div class="note good"><b>${esc(g.t)}</b>${esc(g.d)}</div>`).join('')}</section>`;
+    h += `<section class="card"><h2>보완할 점</h2>${improve.map(g => `<div class="note warn"><b>${esc(g.t)}</b>${esc(g.d)}</div>`).join('')}</section>`;
+    h += `<section class="card"><h2>다음 연습 과제</h2>${practice.map((p, i) => `<div class="note info"><b>${i + 1}.</b>${esc(p)}</div>`).join('')}</section>`;
     return h;
   }
   function roundText(r) {
@@ -515,7 +519,7 @@
   /* ════════════════ 나의 분석 ════════════════ */
   views.analysis = () => {
     const a = PG.analyzeOverall(db.rounds, db.courses);
-    if (!a) return { title: '나의 플레이 분석', html: `<div class="empty"><span class="ico">📊</span>성적을 한 번 이상 기록하면<br>플레이 스타일을 분석해 드려요.</div><a class="btn primary block xl" href="#round-new">성적 기록하기</a>` };
+    if (!a) return { title: '나의 플레이 분석', html: `<div class="empty"><span class="ico">${I('chart')}</span>성적을 한 번 이상 기록하면<br>플레이 스타일을 분석해 드려요.</div><a class="btn primary block xl" href="#round-new">성적 기록하기</a>` };
     const bt = a.bestTotals;
     let html = `<section class="card"><h2>나의 플레이 스타일</h2><p class="big" style="margin:0">${esc(a.style)}</p></section>
     <div class="wx" style="margin-bottom:16px"><div><span class="k">기록한 경기</span><span class="v">${a.count}번</span></div><div><span class="k">9홀당 평균</span><span class="v">${PG.signF(a.avgPer9)}타</span></div>
@@ -527,7 +531,7 @@
     if (wx.length) html += `<section class="card"><h2>날씨별 성적</h2>${wx.map(b => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="grow"><b>${b.label}</b> <span class="muted small">${b.n}번</span></span><span class="big">${PG.signF(b.avg)}</span>${b.others != null ? `<span class="muted small">다른 날 ${PG.signF(b.others)}</span>` : ''}</div>`).join('')}<p class="muted small">숫자는 9홀당 기준보다 더 친 타수예요.</p></section>`;
     if (aiOn()) html += `<section class="card" id="aiBox">${aiOverallBox()}</section><h2 class="section-title">기본 분석</h2>`;
     html += analysisCards(a.good, a.improve, a.practice);
-    html += `<button class="btn block" data-act="speak-overall">🔊 소리로 듣기</button>`;
+    html += `<button class="btn block" data-act="speak-overall">소리로 듣기</button>`;
     return { title: '나의 플레이 분석', html, after: () => drawChart($('#chart'), a.series) };
   };
   acts['speak-overall'] = () => {
@@ -569,15 +573,15 @@
     const live = db.bets.filter(b => b.status === 'playing');
     const done = db.bets.filter(b => b.status === 'done').sort((a, b) => b.date.localeCompare(a.date));
     let html = `<a class="btn primary block xl" href="#bet-new">＋ 새 내기 시작하기</a>`;
-    if (live.length) html += `<h2 class="section-title">하고 있는 내기</h2><ul class="list">${live.map(b => `<li><a href="#bet-play-${b.id}"><span class="ico">⏳</span><span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${fmtDate(b.date)} · 점당 ${wonPlain(b.unit)}</span></span><span class="right small">이어서<br>하기 ▶</span></a></li>`).join('')}</ul>`;
+    if (live.length) html += `<h2 class="section-title">하고 있는 내기</h2><ul class="list">${live.map(b => `<li><a href="#bet-play-${b.id}"><span class="ico">${I('clock')}</span><span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${fmtDate(b.date)} · 점당 ${wonPlain(b.unit)}</span></span><span class="right small">이어서<br>하기</span></a></li>`).join('')}</ul>`;
     // 누적
     const me = db.settings.name;
     const acc = {};
     for (const b of done) { const s = PG.settleBet(b); for (const p of b.players) acc[p] = (acc[p] || 0) + s.money[p]; }
     const names = Object.keys(acc).sort((a, b) => acc[b] - acc[a]);
     if (names.length) html += `<section class="card"><h2>지금까지 내기 합계</h2>${names.map(p => `<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="grow big">${esc(p)}${p === me ? ' <span class="tag info">나</span>' : ''}</span><span class="big ${acc[p] > 0 ? 'money-plus' : acc[p] < 0 ? 'money-minus' : ''}">${won(acc[p])}</span></div>`).join('')}<p class="muted small">＋는 딴 돈, −는 잃은 돈이에요.</p></section>`;
-    if (done.length) html += `<h2 class="section-title">지난 내기</h2><ul class="list">${done.map(b => { const s = PG.settleBet(b); const mine = me && b.players.includes(me) ? s.money[me] : null; return `<li><a href="#bet-${b.id}"><span class="ico">💰</span><span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${fmtDate(b.date)}${b.place ? ' · ' + esc(b.place) : ''} · ${b.totalsOnly ? '합계' : b.mode === 'hole' ? '홀 이기기' : '타당'}</span></span>${mine != null ? `<span class="right ${mine > 0 ? 'money-plus' : mine < 0 ? 'money-minus' : ''}">${won(mine)}</span>` : ''}</a></li>`; }).join('')}</ul>`;
-    else if (!live.length) html += `<div class="empty"><span class="ico">💰</span>함께 친 분들 이름과 점당 금액만 정하면<br>타수를 넣을 때마다 자동으로 정산해 드려요.</div>`;
+    if (done.length) html += `<h2 class="section-title">지난 내기</h2><ul class="list">${done.map(b => { const s = PG.settleBet(b); const mine = me && b.players.includes(me) ? s.money[me] : null; return `<li><a href="#bet-${b.id}"><span class="ico">${I('coin')}</span><span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${fmtDate(b.date)}${b.place ? ' · ' + esc(b.place) : ''} · ${b.totalsOnly ? '합계' : b.mode === 'hole' ? '홀 이기기' : '타당'}</span></span>${mine != null ? `<span class="right ${mine > 0 ? 'money-plus' : mine < 0 ? 'money-minus' : ''}">${won(mine)}</span>` : ''}</a></li>`; }).join('')}</ul>`;
+    else if (!live.length) html += `<div class="empty"><span class="ico">${I('coin')}</span>함께 친 분들 이름과 점당 금액만 정하면<br>타수를 넣을 때마다 자동으로 정산해 드려요.</div>`;
     return { title: '내기', html };
   };
 
@@ -614,7 +618,7 @@
       ${d.totalsOnly ? '<p class="muted small">합계만 넣을 때는 타당 방식으로만 계산해요.</p>' : ''}
       <label class="field" style="margin-top:12px"><span>골프장 (안 넣어도 돼요)</span><input type="text" id="bn-place" value="${esc(d.place)}" list="bn-courses"><datalist id="bn-courses">${db.courses.map(c => `<option value="${esc(c.name)}">`).join('')}</datalist></label>
     </section>
-    <button type="button" class="btn primary block xl" data-act="bn-start">▶ 내기 시작</button>`;
+    <button type="button" class="btn primary block xl" data-act="bn-start">내기 시작</button>`;
     return { title: '새 내기', html, back: 'bets', after: () => { const n = $('#bn-name'); n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acts['bn-add'](); } }); } };
   };
   const rerenderBet = () => { const y = window.scrollY; readBetInputs(); render(); window.scrollTo(0, y); };
@@ -656,14 +660,14 @@
     if (b.totalsOnly) {
       html += `<section class="card"><h2>사람마다 전체 타수를 넣으세요</h2><p class="muted small">기준 ${PG.sum(b.pars)}타 (${b.pars.length}홀)</p>${b.players.map((p, i) => `<div class="player-row"><span class="name">${esc(p)}</span><div class="stepper"><button type="button" data-act="bp-tot" data-i="${i}" data-d="-1" aria-label="${esc(p)} 한 타 빼기">－</button><input type="number" inputmode="numeric" class="val" data-tot="${i}" value="${b.totals[p]}" style="width:3.4em;min-height:60px;text-align:center;font-weight:900;font-size:1.5rem;padding:4px"><button type="button" class="plus" data-act="bp-tot" data-i="${i}" data-d="1" aria-label="${esc(p)} 한 타 더하기">＋</button></div></div>`).join('')}</section>`;
       html += liveBox(b, s);
-      html += `<button type="button" class="btn primary block xl" data-act="bp-finish" data-id="${b.id}">🧮 정산하기</button>`;
+      html += `<button type="button" class="btn primary block xl" data-act="bp-finish" data-id="${b.id}">정산하기</button>`;
     } else {
       const i = b.cur, par = b.pars[i], n = b.pars.length;
       const sec = Math.floor(i / 9), names = PG.SECTION_NAMES;
       html += `<section class="card center"><p class="muted" style="margin:0">${names[sec] || ''} 코스</p><p class="huge" style="margin:4px 0">${i + 1}번 홀</p><button type="button" class="par-chip" data-act="bp-par" style="font-size:1.1rem;padding:6px 18px">기준 파${par} (눌러서 바꾸기)</button>
         <div class="dots" aria-label="홀 고르기">${b.pars.map((_, k) => `<button type="button" data-act="bp-go" data-k="${k}" class="${k === i ? 'cur' : b.players.every(p => b.scores[p][k]) ? 'done' : ''}" aria-label="${k + 1}번 홀">${k + 1}</button>`).join('')}</div></section>
       <section class="card">${b.players.map((p, pi) => { const v = b.scores[p][i] || par; return `<div class="player-row"><div><span class="name">${esc(p)}</span><br><span class="muted small">지금까지 ${s.totals[p] - (b.scores[p][i] || 0) + v}타</span> ${holeTag(v, par)}</div><div class="stepper"><button type="button" data-act="bp-step" data-p="${pi}" data-d="-1" aria-label="${esc(p)} 한 타 빼기">－</button><span class="val">${v}</span><button type="button" class="plus" data-act="bp-step" data-p="${pi}" data-d="1" aria-label="${esc(p)} 한 타 더하기">＋</button></div></div>`; }).join('')}</section>
-      <div class="btn-row"><button type="button" class="btn" data-act="bp-prev" ${i === 0 ? 'disabled' : ''}>◀ 이전 홀</button>${i < n - 1 ? `<button type="button" class="btn primary" data-act="bp-next">다음 홀 ▶</button>` : `<button type="button" class="btn primary" data-act="bp-finish" data-id="${b.id}">🧮 정산하기</button>`}</div>
+      <div class="btn-row"><button type="button" class="btn" data-act="bp-prev" ${i === 0 ? 'disabled' : ''}>이전 홀</button>${i < n - 1 ? `<button type="button" class="btn primary" data-act="bp-next">다음 홀</button>` : `<button type="button" class="btn primary" data-act="bp-finish" data-id="${b.id}">정산하기</button>`}</div>
       <div style="height:16px"></div>${liveBox(b, s)}
       ${i < n - 1 ? `<button type="button" class="btn ghost block" data-act="bp-finish" data-id="${b.id}">여기까지만 하고 정산하기</button>` : ''}`;
     }
@@ -702,13 +706,13 @@
     const parSum = b.totalsOnly ? PG.sum(b.pars) : PG.completedHoles(b).reduce((a, i) => a + b.pars[i], 0);
     const medals = ['🥇', '🥈', '🥉'];
     let html = `<section class="card"><p class="muted" style="margin:0">${fmtDate(b.date, true)}${b.place ? ' · ' + esc(b.place) : ''}</p><p style="margin:4px 0 0"><b>${b.totalsOnly || b.mode === 'stroke' ? '타당' : '홀 이기기'}</b> · 점당 ${wonPlain(b.unit)}${b.bonus ? ' · 버디 보너스' : ''}${b.carry ? ' · 이월' : ''}${s.holesDone != null ? ` · ${s.holesDone}홀` : ''}</p></section>
-      <section class="card"><h2>🏆 순위와 정산</h2>${s.ranking.map((p, i) => `<div class="rank-row"><span class="medal">${medals[i] || i + 1 + '등'}</span><div><span class="big">${esc(p)}</span><br><span class="muted">${s.totals[p]}타 ${diffTag(s.totals[p] - parSum)}</span></div><span class="big ${s.money[p] > 0 ? 'money-plus' : s.money[p] < 0 ? 'money-minus' : ''}">${won(s.money[p])}</span></div>`).join('')}</section>
-      <section class="card"><h2>💸 이렇게 주고받으세요</h2>${s.transfers.length ? s.transfers.map(t => `<div class="transfer"><span class="who">${esc(t.from)}님 ➜ ${esc(t.to)}님께</span><span class="amt">${wonPlain(t.amount)}</span></div>`).join('') : '<p>주고받을 돈이 없어요. 모두 비겼어요!</p>'}</section>`;
+      <section class="card"><h2>순위와 정산</h2>${s.ranking.map((p, i) => `<div class="rank-row"><span class="medal">${medals[i] || i + 1 + '등'}</span><div><span class="big">${esc(p)}</span><br><span class="muted">${s.totals[p]}타 ${diffTag(s.totals[p] - parSum)}</span></div><span class="big ${s.money[p] > 0 ? 'money-plus' : s.money[p] < 0 ? 'money-minus' : ''}">${won(s.money[p])}</span></div>`).join('')}</section>
+      <section class="card"><h2>이렇게 주고받으세요</h2>${s.transfers.length ? s.transfers.map(t => `<div class="transfer"><span class="who">${esc(t.from)}님 ➜ ${esc(t.to)}님께</span><span class="amt">${wonPlain(t.amount)}</span></div>`).join('') : '<p>주고받을 돈이 없어요. 모두 비겼어요!</p>'}</section>`;
     const holeLog = s.log.filter(l => l.hole);
     if (holeLog.length) html += `<section class="card"><details><summary class="big" style="cursor:pointer;min-height:48px">홀별 내용 보기</summary>${holeLog.map(l => `<p>• ${l.hole}번 홀: ${l.bonus ? `${esc(l.bonus)} ${esc(l.what)} 보너스 ${l.k}점` : l.winner ? `${esc(l.winner)} 승 (${l.pot}점)` : '비김' + (b.carry ? ' → 다음 홀로' : '')}</p>`).join('')}</details></section>`;
-    html += `<div class="btn-row"><button class="btn" data-act="bet-share" data-id="${b.id}">📤 결과 보내기</button><button class="btn" data-act="bet-speak" data-id="${b.id}">🔊 소리로 듣기</button></div><div style="height:10px"></div>
-      <div class="btn-row"><button class="btn ghost" data-act="bet-reopen" data-id="${b.id}">✏️ 타수 고치기</button><button class="btn" data-act="bet-again" data-id="${b.id}">🔁 같은 분들과 또</button></div><div style="height:10px"></div>
-      <button class="btn danger block" data-act="bp-del" data-id="${b.id}">🗑️ 지우기</button>`;
+    html += `<div class="btn-row"><button class="btn" data-act="bet-share" data-id="${b.id}">결과 보내기</button><button class="btn" data-act="bet-speak" data-id="${b.id}">소리로 듣기</button></div><div style="height:10px"></div>
+      <div class="btn-row"><button class="btn ghost" data-act="bet-reopen" data-id="${b.id}">타수 고치기</button><button class="btn" data-act="bet-again" data-id="${b.id}">같은 분들과 또</button></div><div style="height:10px"></div>
+      <button class="btn danger block" data-act="bp-del" data-id="${b.id}">지우기</button>`;
     return { title: '내기 결과', html, back: 'bets' };
   };
   function betText(b) {
@@ -723,15 +727,15 @@
   /* ════════════════ 골프장 ════════════════ */
   let searchState = { q: '', results: null, loading: false, err: '' };
   views.courses = () => {
-    let html = `<section class="card"><h2>🔍 골프장 찾기</h2>
+    let html = `<section class="card"><h2>골프장 찾기</h2>
       <div class="row"><input type="search" id="cs-q" class="grow" style="flex:1;min-width:0" placeholder="예) 반포, 송도, OO파크골프장" value="${esc(searchState.q)}" enterkeyhint="search"><button class="btn primary" data-act="cs-search">찾기</button></div>
-      <div style="height:10px"></div><button class="btn block" data-act="cs-near">📍 내 주변 골프장 찾기</button>
+      <div style="height:10px"></div><button class="btn block" data-act="cs-near">내 주변 골프장 찾기</button>
       <div id="cs-results">${searchResultsHtml()}</div>
-      <a class="btn ghost block" href="#course-new" style="margin-top:10px">✏️ 직접 입력해서 추가</a></section>`;
-    if (window._returnTo) html = `<div class="note info"><b>골프장을 추가하면</b>성적 입력 화면으로 돌아갈 수 있어요. <a href="#${window._returnTo}" data-act="cs-return">돌아가기 ▶</a></div>` + html;
+      <a class="btn ghost block" href="#course-new" style="margin-top:10px">직접 입력해서 추가</a></section>`;
+    if (window._returnTo) html = `<div class="note info"><b>골프장을 추가하면</b>성적 입력 화면으로 돌아갈 수 있어요. <a href="#${window._returnTo}" data-act="cs-return">돌아가기</a></div>` + html;
     if (db.courses.length) {
-      html += `<h2 class="section-title">내 골프장</h2><ul class="list">${db.courses.map(c => `<li><a href="#course-${c.id}"><span class="ico">${c.fav ? '⭐' : '⛳'}</span><span class="main"><span class="title">${esc(c.name)}</span><span class="sub">${esc(c.address || '')}</span></span><span class="right small" data-mini="${c.id}">${c.lat != null ? '<span class="spinner"></span>' : ''}</span></a></li>`).join('')}</ul>`;
-    } else html += `<div class="empty"><span class="ico">⛳</span>자주 가는 골프장을 찾아 추가해 두면<br>날씨와 운영 상황을 바로 볼 수 있어요.</div>`;
+      html += `<h2 class="section-title">내 골프장</h2><ul class="list">${db.courses.map(c => `<li><a href="#course-${c.id}"><span class="ico">${I(c.fav ? 'star' : 'flag')}</span><span class="main"><span class="title">${esc(c.name)}</span><span class="sub">${esc(c.address || '')}</span></span><span class="right small" data-mini="${c.id}">${c.lat != null ? '<span class="spinner"></span>' : ''}</span></a></li>`).join('')}</ul>`;
+    } else html += `<div class="empty"><span class="ico">${I('flag')}</span>자주 가는 골프장을 찾아 추가해 두면<br>날씨와 운영 상황을 바로 볼 수 있어요.</div>`;
     return { title: '골프장', html, after: () => {
       const q = $('#cs-q'); q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acts['cs-search'](); } });
       db.courses.forEach(async c => {
@@ -748,7 +752,7 @@
     if (!s.results.length) return `<div class="note warn"><b>찾지 못했어요</b>동네 이름만 넣어 보거나, '직접 입력해서 추가'를 눌러 주세요.</div>`;
     return `<h3>찾은 곳 (${s.results.length}곳) — 눌러서 추가</h3><ul class="list">${s.results.map((r, i) => {
       const have = db.courses.find(c => c.name === r.name);
-      return `<li><button class="item" data-act="cs-add" data-i="${i}"><span class="ico">${have ? '✅' : '➕'}</span><span class="main"><span class="title">${esc(r.name)}</span><span class="sub">${esc(r.address || '')}${r.dist != null ? ` · ${r.dist.toFixed(1)}km` : ''}</span></span></button></li>`;
+      return `<li><button class="item" data-act="cs-add" data-i="${i}"><span class="ico">${I(have ? 'check' : 'plus')}</span><span class="main"><span class="title">${esc(r.name)}</span><span class="sub">${esc(r.address || '')}${r.dist != null ? ` · ${r.dist.toFixed(1)}km` : ''}</span></span></button></li>`;
     }).join('')}</ul>`;
   }
   const paintResults = () => { const el = $('#cs-results'); if (el) el.innerHTML = searchResultsHtml(); };
@@ -786,8 +790,8 @@
     const naver = 'https://map.naver.com/p/search/' + encodeURIComponent(c.name);
     const kakao = c.lat != null ? `https://map.kakao.com/link/map/${encodeURIComponent(c.name)},${c.lat},${c.lon}` : 'https://map.kakao.com/?q=' + encodeURIComponent(c.name);
     const missing = !f.grass || !info.open;
-    let html = `<section class="card"><h2 style="font-size:1.25rem">${c.fav ? '⭐ ' : ''}${esc(c.name)}</h2><p class="muted">${esc(c.address || '주소 없음')}</p>
-      <div class="btn-row">${c.phone ? `<a class="btn primary" href="tel:${esc(c.phone.replace(/[^0-9+]/g, ''))}">📞 전화하기</a>` : `<a class="btn ghost" href="#course-edit-${c.id}">📞 전화번호 넣기</a>`}<a class="btn" href="${kakao}" target="_blank" rel="noopener">🗺️ 지도 보기</a></div>
+    let html = `<section class="card"><h2 style="font-size:1.25rem">${c.fav ? '' : ''}${esc(c.name)}</h2><p class="muted">${esc(c.address || '주소 없음')}</p>
+      <div class="btn-row">${c.phone ? `<a class="btn primary" href="tel:${esc(c.phone.replace(/[^0-9+]/g, ''))}">전화하기</a>` : `<a class="btn ghost" href="#course-edit-${c.id}">전화번호 넣기</a>`}<a class="btn" href="${kakao}" target="_blank" rel="noopener">지도 보기</a></div>
       ${c.phone ? `<p class="center muted small">${esc(c.phone)}</p>` : ''}<p class="center small"><a href="${naver}" target="_blank" rel="noopener">네이버 지도에서 찾기</a></p></section>
       <section class="card"><h2>오늘 운영 상황 (예상)</h2><div id="cwx">${c.lat != null ? '<p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p>' : `<p class="muted">위치가 없어 날씨를 볼 수 없어요.</p><a class="btn block" href="#course-edit-${c.id}">위치 찾기</a>`}</div>
       <p class="muted small">날씨와 휴장일로 짐작한 것이에요. 대회·공사로 쉴 수도 있으니 가기 전에 꼭 전화로 확인하세요.</p></section>`;
@@ -797,8 +801,8 @@
       <div><span class="k">휴장일</span><span class="v">${info.closedDays && info.closedDays.length ? info.closedDays.map(d => DOW[d]).join('·') + '요일' : '모름'}</span></div><div><span class="k">운영 시간</span><span class="v">${info.open ? `${esc(info.open)}~${esc(info.close)}` : '모름'}</span></div></div>
       ${c.memo ? `<p style="white-space:pre-wrap">${esc(c.memo)}</p>` : ''}</section>`;
     if (stats) html += `<section class="card"><h2>여기서 친 기록</h2><div class="wx"><div><span class="k">경기 수</span><span class="v">${stats.n}번</span></div><div><span class="k">9홀당 평균</span><span class="v">${PG.signF(stats.avg)}</span></div></div></section>`;
-    html += `<div class="btn-row"><a class="btn ghost" href="#course-edit-${c.id}">✏️ 정보 고치기</a><button class="btn" data-act="c-round" data-id="${c.id}">📝 여기서 친 성적</button></div><div style="height:10px"></div>
-      <div class="btn-row"><button class="btn" data-act="c-event" data-id="${c.id}">📅 여기로 일정</button><button class="btn danger" data-act="c-del" data-id="${c.id}">🗑️ 지우기</button></div>`;
+    html += `<div class="btn-row"><a class="btn ghost" href="#course-edit-${c.id}">정보 고치기</a><button class="btn" data-act="c-round" data-id="${c.id}">여기서 친 성적</button></div><div style="height:10px"></div>
+      <div class="btn-row"><button class="btn" data-act="c-event" data-id="${c.id}">여기로 일정</button><button class="btn danger" data-act="c-del" data-id="${c.id}">지우기</button></div>`;
     return { title: '골프장 정보', html, back: 'courses', after: () => loadCourseWx(c) };
   };
   async function loadCourseWx(c) {
@@ -808,7 +812,7 @@
       const pm = d.aq && d.aq.current ? WX.pmGrade(d.aq.current.pm10, d.aq.current.pm2_5) : null;
       const hours = WX.bestHours(d.w);
       const D = d.w.daily; const todayIdx = D.time.indexOf(today());
-      let h = `<div class="status-big ${['good', 'warn', 'bad'][st.level]}"><span class="ico">${st.icon}</span><div><div class="t">${st.label}</div></div></div>${st.reasons.map(r => `<p>• ${esc(r)}</p>`).join('')}
+      let h = `<div class="status-big ${['good', 'warn', 'bad'][st.level]}"><span class="ico">${I(['smile', 'alert', 'stop'][st.level])}</span><div><div class="t">${st.label}</div></div></div>${st.reasons.map(r => `<p>• ${esc(r)}</p>`).join('')}
         <div class="wx" style="margin-top:12px"><div><span class="k">지금 날씨</span><span class="v">${WX.wxIcon(cur.weather_code)} ${WX.wxName(cur.weather_code)}</span></div><div><span class="k">기온 (체감)</span><span class="v">${Math.round(cur.temperature_2m)}℃ <span class="small">(${Math.round(cur.apparent_temperature)}℃)</span></span></div>
         <div><span class="k">바람</span><span class="v">초속 ${Math.round(cur.wind_speed_10m)}m</span></div><div><span class="k">미세먼지</span><span class="v">${pm ? pm.icon + ' ' + pm.name : '-'}</span></div>
         ${todayIdx >= 0 ? `<div><span class="k">오늘 최고/최저</span><span class="v">${Math.round(D.temperature_2m_max[todayIdx])}° / ${Math.round(D.temperature_2m_min[todayIdx])}°</span></div><div><span class="k">비 올 확률</span><span class="v">${D.precipitation_probability_max[todayIdx] != null ? D.precipitation_probability_max[todayIdx] + '%' : '-'}</span></div>
@@ -833,11 +837,11 @@
     const html = `<section class="card">
       <label class="field"><span>골프장 이름</span><input type="text" id="cf-name" value="${esc(c.name)}" placeholder="예) 한강 OO파크골프장"></label>
       <label class="field"><span>주소 (동네 이름만 넣어도 돼요)</span><input type="text" id="cf-addr" value="${esc(c.address)}"></label>
-      <button type="button" class="btn block" data-act="cf-locate">📍 위치 찾기 ${c.lat != null ? '<span class="tag good">찾음</span>' : ''}</button>
+      <button type="button" class="btn block" data-act="cf-locate">위치 찾기 ${c.lat != null ? '<span class="tag good">찾음</span>' : ''}</button>
       <div id="cf-loc"></div>
       <div style="height:14px"></div>
       <label class="field"><span>전화번호</span><input type="tel" id="cf-phone" value="${esc(c.phone)}" placeholder="예) 02-123-4567"></label>
-      <button type="button" class="check" data-act="cf-fav" aria-pressed="${!!c.fav}"><span class="box">${c.fav ? '✓' : ''}</span><span class="lbl">⭐ 자주 가는 곳 (처음 화면에 날씨 보이기)</span></button>
+      <button type="button" class="check" data-act="cf-fav" aria-pressed="${!!c.fav}"><span class="box">${c.fav ? '✓' : ''}</span><span class="lbl">자주 가는 곳 (처음 화면에 날씨 보이기)</span></button>
     </section>
     <section class="card"><h2>운영 정보</h2>
       <label class="field"><span>정기 휴장일 (여러 개 가능)</span></label>
@@ -852,7 +856,7 @@
       <button type="button" class="check" data-act="cf-river" aria-pressed="${!!f.river}"><span class="box">${f.river ? '✓' : ''}</span><span class="lbl">강가·하천 옆이에요 (바람·침수 영향)</span></button>
       <label class="field"><span>메모</span><textarea id="cf-memo" placeholder="예) 주차장 넓음, 3번 홀 그린 빠름">${esc(c.memo)}</textarea></label>
     </section>
-    <button type="button" class="btn primary block xl" data-act="cf-save">💾 저장</button>`;
+    <button type="button" class="btn primary block xl" data-act="cf-save">저장</button>`;
     return { title, html, back };
   }
   function readCourse() {
@@ -875,7 +879,7 @@
       let res = await WX.searchCourses(q);
       if (!res.length && cdraft.address) res = await WX.searchCourses(cdraft.address);
       if (!res.length) { box.innerHTML = '<div class="note warn"><b>찾지 못했어요</b>주소를 동네 이름(예: 서초구 반포동)으로 바꿔 보세요.</div>'; return; }
-      box.innerHTML = `<p><b>맞는 곳을 눌러 주세요</b></p><ul class="list">${res.slice(0, 6).map((r, i) => `<li><button class="item" data-act="cf-pick" data-i="${i}"><span class="ico">📍</span><span class="main"><span class="title">${esc(r.name)}</span><span class="sub">${esc(r.address)}</span></span></button></li>`).join('')}</ul>`;
+      box.innerHTML = `<p><b>맞는 곳을 눌러 주세요</b></p><ul class="list">${res.slice(0, 6).map((r, i) => `<li><button class="item" data-act="cf-pick" data-i="${i}"><span class="ico">${I('pin')}</span><span class="main"><span class="title">${esc(r.name)}</span><span class="sub">${esc(r.address)}</span></span></button></li>`).join('')}</ul>`;
       window._locRes = res;
     } catch (e) { box.innerHTML = '<div class="note bad">인터넷 연결을 확인해 주세요.</div>'; }
   };
@@ -893,23 +897,23 @@
   };
 
   /* ════════════════ 일정 ════════════════ */
-  const EV_ICON = { 대회: '🏆', 모임: '👥', 연습: '⛳', 기타: '📌' };
+  const EV_ICON = { 대회: I('trophy'), 모임: I('users'), 연습: I('flag'), 기타: I('pin') };
   views.schedule = () => {
     const up = db.events.filter(e => e.date >= today()).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
     const past = db.events.filter(e => e.date < today()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15);
     let html = `<a class="btn primary block xl" href="#event-new">＋ 일정 추가하기</a>`;
     const card = e => {
       const rec = e.type === '대회' && e.date <= today() && !db.rounds.find(r => r.eventId === e.id);
-      return `<section class="card"><div class="row"><span style="font-size:2rem">${EV_ICON[e.type] || '📌'}</span><div class="grow"><p class="big" style="margin:0">${esc(e.title)}</p><p style="margin:0">${fmtDate(e.date)} ${fmtTime(e.time)}</p>${e.place ? `<p class="muted" style="margin:0">📍 ${esc(e.place)}</p>` : ''}</div><span class="dday">${dday(e.date)}</span></div>
+      return `<section class="card"><div class="ev-head"><span class="ev-ico">${EV_ICON[e.type] || EV_ICON["기타"]}</span><span class="dday">${dday(e.date)}</span></div><p class="big" style="margin:10px 0 2px">${esc(e.title)}</p><p style="margin:0;font-weight:600">${fmtDate(e.date)} ${fmtTime(e.time)}</p>${e.place ? `<p class="muted" style="margin:0">${esc(e.place)}</p>` : ''}
         ${e.memo ? `<p class="muted small" style="white-space:pre-wrap">${esc(e.memo)}</p>` : ''}
         <div style="height:10px"></div>
-        ${e.date >= today() ? `<div class="btn-row"><button class="btn" data-act="ev-ics" data-id="${e.id}">📅 삼성 캘린더</button><a class="btn" href="${gcalUrl(e)}" target="_blank" rel="noopener">구글 캘린더</a></div><div style="height:10px"></div>` : ''}
-        ${rec ? `<button class="btn primary block" data-act="ev-record" data-id="${e.id}">📝 이 대회 성적 기록하기</button><div style="height:10px"></div>` : ''}
-        <div class="btn-row"><a class="btn ghost" href="#event-edit-${e.id}">✏️ 고치기</a><button class="btn danger" data-act="ev-del" data-id="${e.id}">🗑️ 지우기</button></div></section>`;
+        ${e.date >= today() ? `<div class="btn-row"><button class="btn" data-act="ev-ics" data-id="${e.id}">삼성 캘린더</button><a class="btn" href="${gcalUrl(e)}" target="_blank" rel="noopener">구글 캘린더</a></div><div style="height:10px"></div>` : ''}
+        ${rec ? `<button class="btn primary block" data-act="ev-record" data-id="${e.id}">이 대회 성적 기록하기</button><div style="height:10px"></div>` : ''}
+        <div class="btn-row"><a class="btn ghost" href="#event-edit-${e.id}">고치기</a><button class="btn danger" data-act="ev-del" data-id="${e.id}">지우기</button></div></section>`;
     };
     if (up.length) html += `<h2 class="section-title">다가오는 일정 (${up.length})</h2>${up.map(card).join('')}`;
-    else html += `<div class="empty"><span class="ico">📅</span>다가오는 파크골프 일정이 없어요.</div>`;
-    html += `<section class="card"><h2>📲 삼성 캘린더와 연결</h2>
+    else html += `<div class="empty"><span class="ico">${I('cal')}</span>다가오는 파크골프 일정이 없어요.</div>`;
+    html += `<section class="card"><h2>삼성 캘린더와 연결</h2>
       <p>일정마다 <b>‘삼성 캘린더’</b> 버튼을 누르면 캘린더에 넣을 수 있어요.</p>
       <div class="btn-row" style="margin:12px 0"><button class="btn" data-act="ev-ics-all" ${up.length ? '' : 'disabled'}>모든 일정 한 번에</button><label class="btn" for="ev-import" style="cursor:pointer">캘린더에서 가져오기</label></div>
       <input type="file" id="ev-import" accept=".ics,text/calendar" hidden>
@@ -939,7 +943,7 @@
     const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//parkgolf-note//KO', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
     for (const e of events) {
       const [s, en] = evTimes(e);
-      lines.push('BEGIN:VEVENT', `UID:${e.id}@parkgolf-note`, `DTSTAMP:${f(new Date())}`, `DTSTART:${f(s)}`, `DTEND:${f(en)}`, `SUMMARY:${fold('⛳ ' + e.title)}`);
+      lines.push('BEGIN:VEVENT', `UID:${e.id}@parkgolf-note`, `DTSTAMP:${f(new Date())}`, `DTSTART:${f(s)}`, `DTEND:${f(en)}`, `SUMMARY:${fold('' + e.title)}`);
       if (e.place) lines.push(`LOCATION:${fold(e.place)}`);
       lines.push(`DESCRIPTION:${fold((e.memo || '') + '\n파크골프 수첩에서 추가한 일정')}`, 'CATEGORIES:파크골프');
       if (al.includes('1d')) lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${fold('내일 ' + e.title)}`, 'TRIGGER:-P1D', 'END:VALARM');
@@ -1026,7 +1030,7 @@
       <label class="field"><span>장소</span><input type="text" id="ef-place" value="${esc(e.place)}" list="ef-courses" placeholder="골프장 이름"><datalist id="ef-courses">${db.courses.map(c => `<option value="${esc(c.name)}">`).join('')}</datalist></label>
       <label class="field"><span>메모 (준비물, 모이는 곳 등)</span><textarea id="ef-memo">${esc(e.memo)}</textarea></label>
     </section>
-    <button type="button" class="btn primary block xl" data-act="ef-save">💾 저장</button>
+    <button type="button" class="btn primary block xl" data-act="ef-save">저장</button>
     <p class="muted small center">저장한 뒤 ‘삼성 캘린더’ 버튼으로 휴대폰 캘린더에 넣을 수 있어요.</p>`;
     return { title, html, back };
   }
@@ -1052,19 +1056,19 @@
     const html = `<section class="card"><h2>오늘 챙길 것</h2><p class="muted small" style="margin-top:0">챙긴 것은 눌러서 표시하세요. 내일이 되면 다시 비워져요.</p>
       ${all.map(it => `<button type="button" class="check" data-act="ck" data-v="${esc(it)}" aria-pressed="${!!db.checklist.checked[it]}"><span class="box">${db.checklist.checked[it] ? '✓' : ''}</span><span class="lbl">${esc(it)}</span></button>`).join('')}
       <div class="row" style="margin-top:12px"><input type="text" id="ck-new" placeholder="더 넣을 물건" style="flex:1;min-width:0"><button class="btn" data-act="ck-add">추가</button></div></section>
-      ${fav ? `<section class="card"><h2>🌤️ 오늘 날씨에 맞춰 더 챙기세요</h2><div id="ck-wx"><p class="muted"><span class="spinner"></span> 불러오는 중…</p></div></section>` : ''}
+      ${fav ? `<section class="card"><h2>오늘 날씨에 맞춰 더 챙기세요</h2><div id="ck-wx"><p class="muted"><span class="spinner"></span> 불러오는 중…</p></div></section>` : ''}
       <button class="btn ghost block" data-act="ck-reset">모두 비우기</button>`;
     return { title: '준비물 챙기기', html, after: async () => {
       const box = $('#ck-wx'); if (!box || !fav || fav.lat == null) { if (box) box.innerHTML = '<p class="muted">자주 가는 골프장 위치가 있으면 날씨에 맞는 준비물을 알려 드려요.</p>'; return; }
       try {
         const d = await courseNow(fav); const D = d.w.daily, i = D.time.indexOf(today());
         const tips = [];
-        if (D.precipitation_probability_max[i] >= 40) tips.push('☂️ 우산·우비 (비 올 확률 ' + D.precipitation_probability_max[i] + '%)');
-        if (D.temperature_2m_max[i] >= 28) tips.push('🧊 물 넉넉히, 쿨토시·양산');
-        if (D.temperature_2m_min[i] <= 5) tips.push('🧤 핫팩·두꺼운 장갑·목도리');
-        if (D.uv_index_max && D.uv_index_max[i] >= 6) tips.push('🧴 선크림·선글라스 (자외선 강함)');
-        if (D.wind_speed_10m_max[i] >= 7) tips.push('🧥 바람막이 (바람 강함)');
-        if (d.aq && d.aq.current && WX.pmGrade(d.aq.current.pm10, d.aq.current.pm2_5).g >= 3) tips.push('😷 마스크 (미세먼지 나쁨)');
+        if (D.precipitation_probability_max[i] >= 40) tips.push('우산·우비 (비 올 확률 ' + D.precipitation_probability_max[i] + '%)');
+        if (D.temperature_2m_max[i] >= 28) tips.push('물 넉넉히, 쿨토시·양산');
+        if (D.temperature_2m_min[i] <= 5) tips.push('핫팩·두꺼운 장갑·목도리');
+        if (D.uv_index_max && D.uv_index_max[i] >= 6) tips.push('선크림·선글라스 (자외선 강함)');
+        if (D.wind_speed_10m_max[i] >= 7) tips.push('바람막이 (바람 강함)');
+        if (d.aq && d.aq.current && WX.pmGrade(d.aq.current.pm10, d.aq.current.pm2_5).g >= 3) tips.push('마스크 (미세먼지 나쁨)');
         box.innerHTML = `<p class="muted small" style="margin-top:0">${esc(fav.name)} 기준</p>` + (tips.length ? tips.map(t => `<div class="note info">${esc(t)}</div>`).join('') : '<p>오늘은 날씨가 무난해요. 기본 준비물만 챙기세요.</p>');
       } catch (e) { box.innerHTML = '<p class="muted">날씨를 불러오지 못했어요.</p>'; }
     } };
@@ -1086,7 +1090,7 @@
   ];
   views.stretch = () => ({
     title: '몸풀기 체조',
-    html: `<div class="note info"><b>경기 전 10분</b>다치지 않게 천천히, 아프면 바로 멈추세요.</div>${STRETCH.map(([t, d], i) => `<section class="card"><h2>${i + 1}. ${t}</h2><p>${d}</p></section>`).join('')}<button class="btn primary block xl" data-act="st-speak">🔊 소리로 따라 하기</button>`
+    html: `<div class="note info"><b>경기 전 10분</b>다치지 않게 천천히, 아프면 바로 멈추세요.</div>${STRETCH.map(([t, d], i) => `<section class="card"><h2>${i + 1}. ${t}</h2><p>${d}</p></section>`).join('')}<button class="btn primary block xl" data-act="st-speak">소리로 따라 하기</button>`
   });
   acts['st-speak'] = () => speak('몸풀기 체조를 시작합니다. ' + STRETCH.map(([t, d], i) => `${i + 1}번, ${t}. ${d}`).join(' '));
 
@@ -1099,16 +1103,16 @@
     <section class="card"><h2>글자 크기</h2><div class="seg">${[['normal', '보통'], ['big', '크게'], ['huge', '아주 크게']].map(([v, l]) => `<button class="chip" data-act="st-size" data-v="${v}" aria-pressed="${s.size === v}">${l}</button>`).join('')}</div>
       <h3>화면 밝기</h3><div class="seg">${[['light', '밝게'], ['dark', '어둡게'], ['auto', '휴대폰 따라']].map(([v, l]) => `<button class="chip" data-act="st-theme" data-v="${v}" aria-pressed="${s.theme === v}">${l}</button>`).join('')}</div></section>
     <section class="card"><h2>캘린더 알림</h2><p class="muted small" style="margin-top:0">삼성 캘린더에 넣을 때 같이 넣을 알림</p><div class="chips">${[['1d', '하루 전'], ['2h', '2시간 전']].map(([v, l]) => `<button class="chip" data-act="st-alarm" data-v="${v}" aria-pressed="${(s.alarms || []).includes(v)}">${l}</button>`).join('')}</div></section>
-    <section class="card"><h2>🔗 서버 연결 (기상청 날씨·AI 코치)</h2>
+    <section class="card"><h2>서버 연결 (기상청 날씨·AI 코치)</h2>
       <p class="muted small" style="margin-top:0">가족이 만들어 둔 서버 주소와 비밀번호를 한 번만 넣으면 돼요. 비워 두면 기본 날씨(Open-Meteo)와 기본 분석만 써요.</p>
       <label class="field"><span>서버 주소</span><input type="text" id="srv-url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).url || '')}" placeholder="https://parkgolf-server.아이디.workers.dev"></label>
       <label class="field"><span>앱 비밀번호 (없으면 비워 두세요)</span><input type="text" id="srv-pass" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).pass || '')}"></label>
       <div class="btn-row"><button class="btn primary" data-act="srv-save">저장하고 확인</button><button class="btn ghost" data-act="srv-clear">연결 끊기</button></div>
       <div id="srv-status"></div></section>
-    <section class="card"><h2>📱 휴대폰 화면에 앱 아이콘 만들기</h2>
+    <section class="card"><h2>휴대폰 화면에 앱 아이콘 만들기</h2>
       ${installEvt ? '<button class="btn primary block" data-act="st-install">홈 화면에 추가</button>' : ''}
       <p><b>삼성 인터넷:</b> 아래쪽 ☰ 메뉴 → <b>‘현재 페이지 추가’</b> → <b>‘홈 화면’</b></p><p><b>크롬:</b> 오른쪽 위 ⋮ → <b>‘홈 화면에 추가’</b></p></section>
-    <section class="card"><h2>💾 기록 백업</h2><p class="muted small" style="margin-top:0">기록은 이 휴대폰 안에만 저장돼요. 휴대폰을 바꾸기 전에 꼭 백업하세요.</p>
+    <section class="card"><h2>기록 백업</h2><p class="muted small" style="margin-top:0">기록은 이 휴대폰 안에만 저장돼요. 휴대폰을 바꾸기 전에 꼭 백업하세요.</p>
       <div class="btn-row"><button class="btn" data-act="bk-save">파일로 저장</button><button class="btn" data-act="bk-copy">글로 복사</button></div>
       <h3>되살리기</h3><div class="btn-row"><label class="btn ghost" for="bk-file" style="cursor:pointer">파일 고르기</label><button class="btn ghost" data-act="bk-paste">글 붙여넣기</button></div><input type="file" id="bk-file" accept=".json,application/json" hidden>
       <p class="muted small">성적 ${db.rounds.length}개 · 내기 ${db.bets.length}개 · 골프장 ${db.courses.length}곳 · 일정 ${db.events.length}개</p></section>
@@ -1128,7 +1132,7 @@
       db.settings.server.ai = !!h.ai; save();
       let wxOk = false, wxMsg = '';
       if (h.weather) { try { await srv('/weather?lat=37.57&lon=126.98'); wxOk = true; } catch (e) { wxMsg = e.message; } }
-      box.innerHTML = `<div class="note ${wxOk ? 'good' : 'warn'}"><b>서버에 연결됐어요</b>기상청 날씨: ${wxOk ? '✅ 사용 중' : '❌ ' + esc(wxMsg || '서버에 기상청 키 없음')}<br>AI 코치: ${h.ai ? '✅ 사용 가능' : '아직 꺼져 있음 (서버에 AI 키를 넣으면 켜져요)'}</div>`;
+      box.innerHTML = `<div class="note ${wxOk ? 'good' : 'warn'}"><b>서버에 연결됐어요</b>기상청 날씨: ${wxOk ? '사용 중' : '' + esc(wxMsg || '서버에 기상청 키 없음')}<br>AI 코치: ${h.ai ? '사용 가능' : '아직 꺼져 있음 (서버에 AI 키를 넣으면 켜져요)'}</div>`;
       Object.keys(wxCache).forEach(k => delete wxCache[k]);
     } catch (e) { box.innerHTML = `<div class="note bad"><b>연결하지 못했어요</b>${esc(e.message)}</div>`; }
   };
