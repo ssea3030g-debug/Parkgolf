@@ -380,6 +380,17 @@ def main():
         sources.append({'id': pk, 'title': title, 'org': info['org'], 'modified': info['modified'], 'url': info['page'], 'count': len(items) - n0})
         time.sleep(0.5)
 
+    # 직접 추가한 항목 (scripts/manual_courses.json) — 자동 갱신으로 지워지지 않게 따로 보관
+    mp = os.path.join(os.path.dirname(__file__), 'manual_courses.json')
+    if os.path.exists(mp):
+        manual = json.load(open(mp, encoding='utf-8'))
+        for m in manual:
+            m['sr'] = '직접 추가'
+            items.append(m)
+        if manual:
+            sources.append({'id': 0, 'title': '직접 추가한 항목', 'org': '', 'modified': date.today().isoformat(), 'url': '', 'count': len(manual)})
+        log(f'직접 추가한 항목: {len(manual)}곳')
+
     # 같은 곳 중복 정리 (이름+주소 또는 이름+좌표)
     seen, uniq = set(), []
     for it in items:

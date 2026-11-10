@@ -834,7 +834,7 @@
     const addr = localAddr(x);
     let c = db.courses.find(k => k.name === x.n && (k.address || '') === addr);
     if (!c) {
-      const memo = [x.h && `홀 수: ${x.h}홀${x.cs ? ` (${x.cs}코스)` : ''}`, x.ot && '운영시간: ' + x.ot, x.ct && '휴무일: ' + x.ct, x.fee && '이용요금: ' + x.fee, x.rs && '예약: ' + x.rs, x.rl && '예약 링크: ' + x.rl].filter(Boolean).join('\n');
+      const memo = [x.h && `홀 수: ${x.h}홀${x.cs ? ` (${x.cs}코스)` : ''}`, x.ot && '운영시간: ' + x.ot, x.ct && '휴무일: ' + x.ct, x.fee && '이용요금: ' + x.fee, x.rs && '예약: ' + x.rs, x.rl && '예약 링크: ' + x.rl, x.nt && '※ ' + x.nt].filter(Boolean).join('\n');
       c = { id: uid(), name: x.n, address: addr, lat: x.la != null ? x.la : null, lon: x.lo != null ? x.lo : null, phone: x.tel || '', fav: !db.courses.length, info: { closedDays: x.cd || [], open: x.o || '', close: x.c || '' }, features: {}, memo, approx: !!x.ap };
       db.courses.push(c); save(); toast('내 골프장에 추가했어요');
     }
