@@ -12,6 +12,7 @@ import csv, html, io, json, os, re, sys, time, urllib.parse, urllib.request
 from datetime import date
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'app', 'data')
+CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data-cache')
 UA = 'Mozilla/5.0 (X11; Linux x86_64) parkgolf-list-builder/1.0'
 # 검색으로 찾기 전에도 알려진 자료 번호 (검색이 막혔을 때의 보험)
 SEEDS = [15160428, 15160352, 15160528, 15160516, 15166992, 15160487, 15160548, 15160419, 15150432, 15150439, 15142224]
@@ -21,11 +22,43 @@ def log(*a):
     print(*a, flush=True)
 
 
-def get(url, data=None, timeout=40, binary=False):
-    req = urllib.request.Request(url, data=data, headers={'User-Agent': UA, 'Accept': '*/*', 'Referer': 'https://www.data.go.kr/'})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        raw = r.read()
-        return raw if binary else raw.decode('utf-8', 'replace'), r.headers.get('Content-Type', '')
+START = time.time()
+BUDGET = 270  # 초: 전체 제한 시간
+
+
+class OutOfTime(Exception):
+    pass
+
+
+class CaptchaRequired(Exception):
+    """포털이 보안문자를 요구함 — 사람이 확인하는 장치이므로 우회하지 않고 멈춘다."""
+
+
+def get(url, data=None, timeout=15, binary=False, tries=3):
+    if time.time() - START > BUDGET:
+        raise OutOfTime('제한 시간 초과')
+    if isinstance(data, dict):
+        data = urllib.parse.urlencode(data).encode()
+    last = None
+    for k in range(tries):
+        headers = {'User-Agent': UA, 'Accept': '*/*', 'Referer': 'https://www.data.go.kr/'}
+        if data:
+            headers['X-Requested-With'] = 'XMLHttpRequest'
+        req = urllib.request.Request(url, data=data, headers=headers)
+        t0 = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read()
+                log(f'    {"POST" if data else "GET"} {url[:90]} → {len(raw)}B ({time.time() - t0:.1f}s)')
+                return raw if binary else raw.decode('utf-8', 'replace'), r.headers.get('Content-Type', '')
+        except urllib.error.HTTPError as e:
+            log(f'    {url[:90]} ✗ HTTP {e.code}')
+            raise
+        except Exception as e:  # 연결이 끊기는 경우가 간혹 있어 몇 번 더 시도
+            last = e
+            log(f'    {url[:90]} ✗ {type(e).__name__} {str(e)[:60]} (시도 {k + 1}/{tries})')
+            time.sleep(1.5 * (k + 1))
+    raise last
 
 
 def discover():
@@ -78,17 +111,40 @@ def dataset_info(pk):
                 info['urls'].append(u)
     except Exception as e:
         log(f'  [{pk}] 설명 파일 실패: {e}')
-    if not info['title'] or not info['urls']:
-        try:  # 보험: 자료 페이지에서 제목과 첨부파일 번호를 찾기
-            body, _ = get(info['page'])
-            m = re.search(r'<title>(.*?)\s*\|', body, re.S)
-            if m and not info['title']:
-                info['title'] = html.unescape(m.group(1)).strip()
-            for fid in set(re.findall(r'(FILE_\d{9,})', body)):
-                info['urls'].append(f'https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId={fid}&fileDetailSn=1&insertDataPrcus=N')
-        except Exception as e:
-            log(f'  [{pk}] 자료 페이지 실패: {e}')
     return info
+
+
+def download_args(pk):
+    """자료 페이지의 '다운로드' 버튼이 쓰는 값 (publicDataDetailPk, fileDetailSn)"""
+    body, _ = get(f'https://www.data.go.kr/data/{pk}/fileData.do')
+    m = re.search(r"fn_fileDataDown\('(\d+)',\s*'(uddi:[^']+)',\s*'([^']*)',\s*'(\d+)',\s*'(\d+)'\)", body)
+    return m.groups() if m else None
+
+
+def fetch_csv(pk):
+    """포털 화면과 같은 순서로 요청: ① 파일 정보 → ② 횟수 제한 확인 → ③ 내려받기"""
+    a = download_args(pk)
+    if not a:
+        raise RuntimeError('다운로드 버튼을 못 찾음')
+    pub_pk, detail_pk, atch, sn, _hist = a
+    body, _ = get('https://www.data.go.kr/tcs/dss/selectFileDataDownload.do',
+                  data={'publicDataDetailPk': detail_pk, 'publicDataPk': pub_pk, 'atchFileId': atch, 'fileDetailSn': sn, 'publicDataTyCode': 'PR0051'})
+    j = json.loads(body)
+    if not j.get('status'):
+        raise RuntimeError('파일 정보 응답: ' + str(j.get('error') or j)[:80])
+    atch, sn = j['atchFileId'], j['fileDetailSn']
+    name = (j.get('dataSetFileDetailInfo') or {}).get('dataNm') or ''
+    try:
+        lim, _ = get('https://www.data.go.kr/cmm/cmm/check-limit.json', data={'atchFileId': atch, 'fileDetailSn': sn}, tries=1)
+        if json.loads(lim).get('needCaptcha'):
+            raise CaptchaRequired()
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            raise CaptchaRequired()
+        raise
+    q = urllib.parse.urlencode({'atchFileId': atch, 'fileDetailSn': sn, 'dataNm': name})
+    raw, ctype = get('https://www.data.go.kr/cmm/cmm/fileDownload.do?' + q, binary=True, timeout=30)
+    return decode(raw)
 
 
 def decode(raw):
@@ -208,31 +264,48 @@ def main():
     log(f'확인할 자료: {len(ids)}개')
 
     sources, items, skipped = [], [], []
+    stop_downloads = False
     for pk in ids:
+        if time.time() - START > BUDGET:
+            log('제한 시간이 다 되어 남은 자료는 다음 실행으로 미룹니다.')
+            break
         info = dataset_info(pk)
         title = info['title']
-        if not re.search(r'파크\s*골프', title or ''):
+        if not re.search(r'파크\s*골프', title or '') or re.search(r'이용자|이용객|통계|대회|스크린|예약\s*현황|민원|사고', title or ''):
             skipped.append((pk, title))
             log(f'- [{pk}] 건너뜀(파크골프 자료 아님): {title[:40]}')
             continue
+        cache_file = os.path.join(CACHE_DIR, f'{pk}.json')
         got = None
-        for u in info['urls']:
+        if os.path.exists(cache_file):
+            c = json.load(open(cache_file, encoding='utf-8'))
+            if c.get('modified') == info['modified'] and c.get('rows'):
+                got = c['rows']
+                log(f'- [{pk}] 저장해 둔 자료 사용 ({title[:40]})')
+        if got is None:
+            if stop_downloads:
+                log(f'- [{pk}] ⏭ 보안문자 때문에 이번에는 건너뜀: {title[:40]}')
+                continue
             try:
-                raw, ctype = get(u, binary=True)
-                text = decode(raw)
+                text = fetch_csv(pk)
                 if text.lstrip().startswith('<'):
-                    log(f'  [{pk}] 내려받기가 웹페이지로 응답됨 (로그인 필요 등): {u[:80]}')
-                    continue
-                rows = read_csv(text)
-                if rows:
-                    got = rows
-                    break
-                log(f'  [{pk}] CSV 에서 머리글을 못 찾음: {text[:80]!r}')
+                    raise RuntimeError('파일 대신 웹페이지가 옴')
+                got = read_csv(text)
+                if not got:
+                    raise RuntimeError('CSV 머리글을 못 찾음: ' + repr(text[:60]))
+                os.makedirs(CACHE_DIR, exist_ok=True)
+                json.dump({'modified': info['modified'], 'title': title, 'rows': got}, open(cache_file, 'w', encoding='utf-8'), ensure_ascii=False)
+                time.sleep(2.5)  # 포털에 부담을 주지 않도록 천천히
+            except CaptchaRequired:
+                stop_downloads = True
+                log(f'- [{pk}] ⛔ 포털이 보안문자를 요구해서 새 내려받기를 멈춥니다 (우회하지 않음). 받아 둔 자료로 계속합니다.')
+                continue
+            except OutOfTime:
+                log('제한 시간이 다 되어 남은 자료는 다음 실행으로 미룹니다.')
+                break
             except Exception as e:
-                log(f'  [{pk}] 내려받기 실패: {u[:80]} {e}')
-        if not got:
-            log(f'- [{pk}] ❌ {title[:50]} — 자료를 못 받음')
-            continue
+                log(f'- [{pk}] ❌ {title[:50]} — {e}')
+                continue
         n0 = len(items)
         for row in got:
             it = convert(row, pk)

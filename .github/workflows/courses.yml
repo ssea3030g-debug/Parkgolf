@@ -18,6 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -38,13 +39,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- app/data; then
+          if git diff --quiet -- app/data data-cache \
+             && [ -z "$(git ls-files -o --exclude-standard app/data data-cache)" ]; then
             echo "바뀐 내용이 없어요."
             exit 0
           fi
           git config user.name "courses-bot"
           git config user.email "courses-bot@users.noreply.github.com"
-          git add app/data
+          git add app/data data-cache
           git commit -m "전국 파크골프장 목록 갱신 ($(date -u +%F))"
           git push
           gh workflow run app.yml --ref main
