@@ -242,6 +242,11 @@
     const ups = allEvents().filter(e => e.date >= today()).sort(byWhen).slice(0, 3);
     const fav = db.courses.find(c => c.fav) || db.courses[0];
     const last = [...db.rounds].sort((a, b) => b.date.localeCompare(a.date))[0];
+    // 오늘 일정이 있으면 그 일정의 골프장(제목·장소에서 찾음) 날씨, 없으면 자주 가는 곳
+    const todayEvs = allEvents().filter(e => e.date === today()).sort(byWhen);
+    let wxTarget = null, wxWhy = '';
+    for (const e of todayEvs) { const m = courseFor(e); if (m) { wxTarget = m.mine ? { c: m.mine, mine: true } : { c: listToCourse(m.item), item: m.item }; wxWhy = `오늘 일정: ${e.title}${e.time ? ' ' + fmtTime(e.time) : ''}`; break; } }
+    if (!wxTarget && fav) { wxTarget = { c: fav, mine: true }; wxWhy = todayEvs.length ? `오늘 일정(${todayEvs[0].title})의 장소를 찾지 못해 자주 가는 곳 날씨예요` : '오늘 일정이 없어서 자주 가는 곳 날씨예요'; }
     let html = `<section class="card hero"><p class="big" style="margin:0">${name ? esc(name) + '님, ' : ''}${hello}</p><p class="muted" style="margin:4px 0 0">${fmtDate(today(), true)}</p>`;
     if (!name) html += `<hr><p>이름을 알려 주시면 내기 정산에 '나'로 표시돼요.</p><a class="btn block" href="#more">이름 넣기</a>`;
     html += `</section>`;
@@ -258,14 +263,15 @@
       <a href="#stretch"><span class="ico">${I('run')}</span>몸풀기 체조</a>
       <a href="#more"><span class="ico">${I('sliders')}</span>설정·백업</a>
     </div>`;
-    if (fav) html += `<section class="card"><h2>${esc(fav.name)} 지금</h2><div id="homeWx"><p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p></div><a class="btn block" href="#course-${fav.id}">자세히 보기</a></section>`;
+    if (wxTarget) html += `<section class="card"><h2>${esc(wxTarget.c.name)} ${todayEvs.length && wxWhy.startsWith('오늘 일정:') ? '오늘 날씨' : '지금'}</h2><p class="muted small" style="margin-top:-6px">${esc(wxWhy)}</p><div id="homeWx"><p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p></div>${wxTarget.mine ? `<a class="btn block" href="#course-${wxTarget.c.id}">자세히 보기</a>` : `<button type="button" class="btn block" data-act="ev-course" data-i="${wxTarget.item.i}">골프장 정보 보기</button>`}</section>`;
+    else html += `<section class="card"><h2>오늘 날씨</h2><p class="muted" style="margin:0 0 12px">골프장을 하나 추가하면 오늘 갈 곳의 날씨를 여기서 볼 수 있어요.</p><a class="btn block" href="#courses">골프장 찾기</a></section>`;
     if (last) {
       const t = PG.roundTotals(last);
       html += `<h2 class="section-title">최근 기록</h2><ul class="list"><li><a href="#round-${last.id}"><span class="ico">${I(last.kind === '대회' ? 'trophy' : 'flag')}</span><span class="main"><span class="title">${esc(last.title || last.courseName || '경기')}</span><span class="sub">${fmtDate(last.date)} · ${esc(last.courseName || '')}</span></span><span class="right">${t.strokes}타<br>${diffTag(t.diff)}</span></a></li></ul>`;
     }
     return {
       title: '파크골프 수첩', html, back: null,
-      after: () => { if (fav) loadMiniWx(fav, $('#homeWx')); if (calOn()) { const before = db.calCache && db.calCache.at; syncCal().then(c => { if (c && c.at !== before && parse().name === 'home') render(); }).catch(() => {}); } }
+      after: () => { if (wxTarget) loadMiniWx(wxTarget.c, $('#homeWx')); { const had = GL !== null; loadGL().then(() => { if (!had && parse().name === 'home') render(); }); } if (calOn()) { const before = db.calCache && db.calCache.at; syncCal().then(c => { if (c && c.at !== before && parse().name === 'home') render(); }).catch(() => {}); } }
     };
   };
 
@@ -842,7 +848,7 @@
       <a class="btn ghost block" href="#course-new" style="margin-top:10px">직접 입력해서 추가</a></section>`;
     if (window._returnTo) html = `<div class="note info"><b>골프장을 추가하면</b>성적 입력 화면으로 돌아갈 수 있어요. <a href="#${window._returnTo}" data-act="cs-return">돌아가기</a></div>` + html;
     if (db.courses.length) {
-      html += `<h2 class="section-title">내 골프장</h2><ul class="list">${db.courses.map(c => `<li><a href="#course-${c.id}"><span class="ico">${I(c.fav ? 'star' : 'flag')}</span><span class="main"><span class="title">${esc(c.name)}</span><span class="sub">${esc(c.address || '')}</span></span><span class="right small" data-mini="${c.id}">${c.lat != null ? '<span class="spinner"></span>' : ''}</span></a></li>`).join('')}</ul>`;
+      html += `<h2 class="section-title">내 골프장</h2><ul class="list">${db.courses.map(c => `<li class="has-act"><a href="#course-${c.id}"><span class="ico">${I(c.fav ? 'star' : 'flag')}</span><span class="main"><span class="title">${esc(c.name)}</span><span class="sub">${esc(c.address || '')}</span></span><span class="right small" data-mini="${c.id}">${c.lat != null ? '<span class="spinner"></span>' : ''}</span></a><button type="button" class="star-btn" data-act="c-fav" data-id="${c.id}" aria-pressed="${!!c.fav}" aria-label="${esc(c.name)} ${c.fav ? '자주 가는 곳 해제' : '자주 가는 곳으로 정하기'}">${I('star')}<span>${c.fav ? '자주 가는 곳' : '별표'}</span></button></li>`).join('')}</ul><p class="muted small">★ 별표를 누르면 그 골프장이 <b>자주 가는 곳</b>이 돼요. 오늘 일정이 없을 때 처음 화면 날씨와 성적·내기 기본 골프장으로 쓰여요.</p>`;
     } else html += `<div class="empty"><span class="ico">${I('flag')}</span>자주 가는 골프장을 찾아 추가해 두면<br>날씨와 운영 상황을 바로 볼 수 있어요.</div>`;
     return { title: '골프장', html, after: () => {
       const q = $('#cs-q'); q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acts['cs-search'](); } });
@@ -938,6 +944,7 @@
     }
     afterAdd(c);
   };
+  const listToCourse = x => ({ id: 'list' + x.i, name: x.n, lat: x.la != null ? x.la : null, lon: x.lo != null ? x.lo : null, approx: !!x.ap, info: { closedDays: x.cd || [], open: x.o || '', close: x.c || '' }, features: {} });
   acts['ev-course'] = el => acts['cs-add-local'](el); // 전국 목록의 골프장이면 내 골프장에 넣고 그 화면으로
   acts['cs-add'] = el => {
     const r = searchState.results[Number(el.dataset.i)];
@@ -970,7 +977,8 @@
       <div><span class="k">휴장일</span><span class="v">${info.closedDays && info.closedDays.length ? info.closedDays.map(d => DOW[d]).join('·') + '요일' : '모름'}</span></div><div><span class="k">운영 시간</span><span class="v">${info.open ? `${esc(info.open)}~${esc(info.close)}` : '모름'}</span></div></div>
       ${c.memo ? `<p style="white-space:pre-wrap">${esc(c.memo)}</p>` : ''}</section>`;
     if (stats) html += `<section class="card"><h2>여기서 친 기록</h2><div class="wx"><div><span class="k">경기 수</span><span class="v">${stats.n}번</span></div><div><span class="k">9홀당 평균</span><span class="v">${PG.signF(stats.avg)}</span></div></div></section>`;
-    html += `<div class="btn-row"><a class="btn ghost" href="#course-edit-${c.id}">정보 고치기</a><button class="btn" data-act="c-round" data-id="${c.id}">여기서 친 성적</button></div><div style="height:10px"></div>
+    html += `<button type="button" class="btn ${c.fav ? '' : 'ghost'} block" data-act="c-fav" data-id="${c.id}" style="margin-bottom:10px">${I('star')} ${c.fav ? '자주 가는 곳이에요 (누르면 해제)' : '자주 가는 곳으로 정하기'}</button>
+      <div class="btn-row"><a class="btn ghost" href="#course-edit-${c.id}">정보 고치기</a><button class="btn" data-act="c-round" data-id="${c.id}">여기서 친 성적</button></div><div style="height:10px"></div>
       <div class="btn-row"><button class="btn" data-act="c-event" data-id="${c.id}">여기로 일정</button><button class="btn danger" data-act="c-del" data-id="${c.id}">지우기</button></div>`;
     return { title: '골프장 정보', html, back: 'courses', after: () => loadCourseWx(c) };
   };
@@ -995,6 +1003,12 @@
       box.innerHTML = h;
     } catch (e) { box.innerHTML = `<div class="note bad"><b>날씨를 불러오지 못했어요</b>인터넷 연결을 확인하고 다시 열어 주세요.</div>`; }
   }
+  acts['c-fav'] = el => {
+    const c = course(el.dataset.id); if (!c) return;
+    const on = !c.fav; db.courses.forEach(x => { x.fav = false; }); c.fav = on; save();
+    toast(on ? `‘${c.name}’을(를) 자주 가는 곳으로 정했어요` : '자주 가는 곳을 해제했어요');
+    const y = window.scrollY; render(); window.scrollTo(0, y);
+  };
   acts['c-round'] = el => { const c = course(el.dataset.id); const rs = db.rounds.filter(r => r.courseId === c.id); if (!rs.length) { draft = null; window._roundPrefill = { courseId: c.id }; return go('round-new'); } go('rounds'); };
   acts['c-event'] = el => { evDraft = null; window._eventPrefill = { courseId: el.dataset.id }; go('event-new'); };
   acts['c-del'] = async el => { if (await ask('이 골프장을 지울까요?', '성적 기록은 남아 있어요.', '지우기', true)) { db.courses = db.courses.filter(c => c.id !== el.dataset.id); save(); go('courses'); } };
