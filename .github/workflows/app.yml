@@ -1,5 +1,6 @@
 # 파크골프 수첩 앱(app/)을 GitHub Pages 에 올림
 # 준비 (한 번만): 저장소 Settings → Pages → Build and deployment → Source: "GitHub Actions"
+# 올리는 단계(build)와 배포 단계(deploy)를 나눠서, 방금 올린 파일을 배포 단계가 못 찾는 일시 오류를 줄임
 name: 앱 배포 (GitHub Pages)
 
 on:
@@ -18,11 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,6 +32,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: app
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: 파일이 자리 잡을 때까지 잠깐 기다림
+        run: sleep 20
       - id: deploy
         uses: actions/deploy-pages@v4
       - name: 주소 알려 주기
