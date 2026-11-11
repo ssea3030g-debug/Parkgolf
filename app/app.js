@@ -85,7 +85,10 @@
   }
 
   /* ── 연결 서버 (기상청 날씨·AI 코치) ─────────────── */
-  const srvOn = () => !!(db.settings.server && db.settings.server.url);
+  // 기본 서버: 할머니가 따로 넣지 않아도 기상청 날씨가 나오게. 설정에서 바꾸거나 '연결 끊기'(off)로 끌 수 있음.
+  const DEFAULT_SERVER = 'https://parkgolf-server.ssea3030g.workers.dev';
+  const srvUrl = () => { const sv = db.settings.server || {}; return sv.url || (sv.off ? '' : DEFAULT_SERVER); };
+  const srvOn = () => !!srvUrl();
   const aiOn = () => srvOn() && db.settings.server.ai !== false; // 서버에 AI 키가 없으면 AI 버튼 숨김
   async function srv(path, opts = {}) {
     const s = db.settings.server || {};
@@ -94,7 +97,7 @@
     try {
       const headers = { 'X-App-Pass': encodeURIComponent(s.pass || '') };
       if (opts.body) headers['Content-Type'] = 'application/json';
-      const r = await fetch(s.url.replace(/\/+$/, '') + path, { method: opts.body ? 'POST' : 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined, signal: ctrl.signal });
+      const r = await fetch(srvUrl().replace(/\/+$/, '') + path, { method: opts.body ? 'POST' : 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined, signal: ctrl.signal });
       let j = null; try { j = await r.json(); } catch (e) { /* 빈 응답 */ }
       if (!r.ok) throw new Error((j && j.error) || `서버 오류 (${r.status})`);
       return j;
@@ -1230,8 +1233,8 @@
       <h3>화면 밝기</h3><div class="seg">${[['light', '밝게'], ['dark', '어둡게'], ['auto', '휴대폰 따라']].map(([v, l]) => `<button class="chip" data-act="st-theme" data-v="${v}" aria-pressed="${s.theme === v}">${l}</button>`).join('')}</div></section>
     <section class="card"><h2>캘린더 알림</h2><p class="muted small" style="margin-top:0">삼성 캘린더에 넣을 때 같이 넣을 알림</p><div class="chips">${[['1d', '하루 전'], ['2h', '2시간 전']].map(([v, l]) => `<button class="chip" data-act="st-alarm" data-v="${v}" aria-pressed="${(s.alarms || []).includes(v)}">${l}</button>`).join('')}</div></section>
     <section class="card"><h2>서버 연결 (기상청 날씨·AI 코치)</h2>
-      <p class="muted small" style="margin-top:0">가족이 만들어 둔 서버 주소와 비밀번호를 한 번만 넣으면 돼요. 비워 두면 기본 날씨(Open-Meteo)와 기본 분석만 써요.</p>
-      <label class="field"><span>서버 주소</span><input type="text" id="srv-url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).url || '')}" placeholder="https://parkgolf-server.아이디.workers.dev"></label>
+      <p class="muted small" style="margin-top:0">기본 서버가 이미 들어 있어서 따로 넣지 않아도 기상청 날씨가 나와요. 다른 서버를 쓰려면 바꾸고, ‘연결 끊기’를 누르면 기본 날씨(Open-Meteo)만 써요.</p>
+      <label class="field"><span>서버 주소</span><input type="text" id="srv-url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc(srvUrl())}" placeholder="https://parkgolf-server.아이디.workers.dev"></label>
       <label class="field"><span>앱 비밀번호 (없으면 비워 두세요)</span><input type="text" id="srv-pass" autocapitalize="off" spellcheck="false" value="${esc((s.server || {}).pass || '')}"></label>
       <div class="btn-row"><button class="btn primary" data-act="srv-save">저장하고 확인</button><button class="btn ghost" data-act="srv-clear">연결 끊기</button></div>
       <div id="srv-status"></div></section>
@@ -1278,7 +1281,7 @@
   acts['srv-save'] = async el => {
     const url = $('#srv-url').value.trim(), pass = $('#srv-pass').value.trim();
     if (url && !/^https:\/\//.test(url)) return toast('주소는 https:// 로 시작해야 해요');
-    db.settings.server = { url, pass }; save();
+    db.settings.server = { url, pass, off: !url }; save();
     const box = $('#srv-status');
     if (!url) { box.innerHTML = ''; return toast('저장했어요'); }
     box.innerHTML = '<p class="muted"><span class="spinner"></span> 서버를 확인하는 중…</p>';
@@ -1291,7 +1294,7 @@
       Object.keys(wxCache).forEach(k => delete wxCache[k]);
     } catch (e) { box.innerHTML = `<div class="note bad"><b>연결하지 못했어요</b>${esc(e.message)}</div>`; }
   };
-  acts['srv-clear'] = () => { db.settings.server = { url: '', pass: '' }; save(); Object.keys(wxCache).forEach(k => delete wxCache[k]); rerenderKeep(); toast('서버 연결을 끊었어요'); };
+  acts['srv-clear'] = () => { db.settings.server = { url: '', pass: '', off: true }; save(); Object.keys(wxCache).forEach(k => delete wxCache[k]); rerenderKeep(); toast('서버 연결을 끊었어요'); };
   acts['st-name'] = () => { db.settings.name = $('#st-name').value.trim(); save(); toast('저장했어요'); };
   acts['st-size'] = el => { db.settings.size = el.dataset.v; save(); applySettings(); rerenderKeep(); };
   acts['st-theme'] = el => { db.settings.theme = el.dataset.v; save(); applySettings(); rerenderKeep(); };
@@ -1308,7 +1311,7 @@
     if (!(await ask('되살릴까요?', `지금 기록이 백업 내용(성적 ${data.rounds.length}개)으로 바뀌어요.`, '되살리기'))) return;
     const keepServer = db.settings.server, keepCal = db.settings.cal;
     db = Object.assign(blank(), data, { settings: Object.assign(blank().settings, data.settings || {}) });
-    if (keepServer && keepServer.url) db.settings.server = keepServer; // 백업에는 서버 비밀번호가 없으니 지금 연결을 유지
+    if (keepServer) db.settings.server = keepServer; // 백업에는 서버 비밀번호가 없으니 지금 연결을 유지
     if (!db.settings.cal || !db.settings.cal.url) db.settings.cal = keepCal || blank().settings.cal; // 백업에는 비밀번호가 없으니 지금 연결 유지
     save(); applySettings(); toast('되살렸어요'); go('home');
   }

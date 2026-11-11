@@ -51,11 +51,10 @@ export async function handle(req, env, ctx, deps = {}) {
   const url = new URL(req.url);
   const c = cors(req, env);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: c.headers });
-  if (!c.ok) return json({ error: '허용되지 않은 주소에서 온 요청이에요.' }, 403, c.headers);
-
-  if (url.pathname === '/health') {
+  if (url.pathname === '/health' && req.method === 'GET') { // 어떤 기능이 켜져 있는지만 알려 주므로 주소창에서도 열림
     return json({ ok: true, weather: !!env.KMA_KEY, ai: !!env.ANTHROPIC_API_KEY, model: MODEL, passcode: !!env.APP_PASSCODE }, 200, c.headers);
   }
+  if (!c.ok) return json({ error: '허용되지 않은 주소에서 온 요청이에요.' }, 403, c.headers);
   let pass = req.headers.get('X-App-Pass') || '';
   try { pass = decodeURIComponent(pass); } catch { /* 그대로 비교 */ } // 앱이 한글 비밀번호를 인코딩해서 보냄
   if (env.APP_PASSCODE && !sameText(pass, env.APP_PASSCODE)) {

@@ -6,8 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # 앱 주소만 이 서버를 쓰게 막기 (쉼표로 여러 개). 예: "https://아이디.github.io"
-# 비워 두면 아무 주소에서나 부를 수 있어요 — 그때는 APP_PASSCODE 를 꼭 넣으세요.
-ALLOWED_ORIGINS = ""
+# (기본값: 이 앱의 GitHub Pages 주소만.) 비우면 아무 주소에서나 부를 수 있어요.
+ALLOWED_ORIGINS = "https://ssea3030g-debug.github.io"
 # 하루 AI 분석 최대 횟수 (대략적인 값)
 AI_DAILY_LIMIT = "30"
 

@@ -93,6 +93,7 @@ jobs:
         run: |
           sleep 10
           origin="${ALLOWED_ORIGINS%%,*}"
+          if [ -z "$origin" ]; then origin=$(grep -E '^ALLOWED_ORIGINS' wrangler.toml | sed -E 's/.*"([^",]*).*/\1/'); fi
           pass=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("APP_PASSCODE", ""), safe=""))')
           health=$(curl -s -H "Origin: ${origin}" "$URL/health" || true)
           wx=$(curl -s -H "Origin: ${origin}" -H "X-App-Pass: ${pass}" "$URL/weather?lat=37.57&lon=126.98" || true)

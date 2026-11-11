@@ -136,3 +136,13 @@ test('기상청이 NO_DATA 를 주면 이전 발표 시각으로 다시 시도',
   assert.ok(calls.includes('getVilageFcst:0200'), '예보는 이전 발표(02시)로 재시도: ' + calls.join(','));
   assert.ok(w.hourly.time.length > 0);
 });
+
+test('상태 확인은 주소창(Origin 없음)에서도 열리고, 나머지는 허용된 앱 주소만', async () => {
+  const e = { KMA_KEY: 'k', ALLOWED_ORIGINS: 'https://me.github.io' };
+  let r = await handle(new Request('https://srv.example/health'), e, null, { cache: null });
+  assert.strictEqual(r.status, 200);
+  r = await handle(new Request('https://srv.example/weather?lat=37.5&lon=127'), e, null, { cache: null });
+  assert.strictEqual(r.status, 403, 'Origin 없는 요청은 거절');
+  r = await handle(new Request('https://srv.example/weather?lat=37.5&lon=127', { headers: { Origin: 'https://me.github.io' } }), e, null, { cache: null, fetch: async u => fakeKma(u) });
+  assert.strictEqual(r.status, 200);
+});
