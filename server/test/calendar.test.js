@@ -85,3 +85,15 @@ test('서버 경로: 다른 주소는 거절, 구글 주소는 읽어 줌, 주�
   r = await handle(req({ url: secret }), env, null, { cache: null, calFetch: async () => new Response('<html>로그인</html>') });
   assert.strictEqual(r.status, 502);
 });
+
+test('알림(VALARM) 안의 글은 일정 메모로 읽지 않음', () => {
+  const ics = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:z1', 'DTSTART:20261121T000000Z', 'SUMMARY:파크골프 대회',
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:This is an event reminder', 'TRIGGER:-P1D', 'END:VALARM',
+    'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:z2', 'DTSTART:20261122T000000Z', 'SUMMARY:파크골프 연습', 'DESCRIPTION:장갑 챙기기',
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:This is an event reminder', 'TRIGGER:-PT2H', 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const r = readCalendar(ics, { now: NOW, days: 60 });
+  assert.strictEqual(r.events.find(e => e.title === '파크골프 대회').memo, '', '메모가 없는 일정은 비어 있어야 함');
+  assert.strictEqual(r.events.find(e => e.title === '파크골프 연습').memo, '장갑 챙기기', '자기 메모는 그대로');
+});

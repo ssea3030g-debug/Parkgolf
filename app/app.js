@@ -11,7 +11,10 @@
   /* ── 저장소 ─────────────────────────────────────── */
   const KEY = 'parkgolf.v1';
   const blank = () => ({ courses: [], rounds: [], bets: [], events: [], players: [], settings: { name: '', size: 'big', theme: 'auto', alarms: ['1d', '2h'], server: { url: '', pass: '' }, cal: { url: '', keywords: '파크골프, 파크, 골프, 대회' } }, calCache: null, checklist: { date: '', checked: {} }, aiOverall: null });
+  const JUNK_MEMO = /^\s*this is an event reminder\.?\s*$/i; // 알림 기본 문구가 메모로 잘못 들어간 것
   let db = load();
+  (db.events || []).forEach(e => { if (JUNK_MEMO.test(e.memo || '')) e.memo = ''; });
+  if (db.calCache) db.calCache = null; // 예전 캐시에 잘못된 메모가 있을 수 있어 새로 받음
   function load() {
     try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return Object.assign(blank(), s, { settings: Object.assign(blank().settings, s.settings || {}) }); } catch (e) { /* 처음 */ }
     return blank();
@@ -126,7 +129,7 @@
     const seen = new Set(mine.map(e => normTitle(e.title) + '|' + e.date));
     const fromCal = ((calOn() && db.calCache && db.calCache.events) || []).filter(e => !seen.has(normTitle(e.title) + '|' + e.date)).map((e, i) => ({
       id: 'cal' + i + e.date, cal: true, type: /대회/.test(e.title) ? '대회' : /모임|동호회|월례/.test(e.title) ? '모임' : '연습',
-      title: e.title.replace(/^⛳\s*/, ''), date: e.date, time: e.time || '', end: e.end || '', place: e.place || '', memo: e.memo || '', repeat: e.repeat
+      title: e.title.replace(/^⛳\s*/, ''), date: e.date, time: e.time || '', end: e.end || '', place: e.place || '', memo: JUNK_MEMO.test(e.memo || '') ? '' : (e.memo || ''), repeat: e.repeat
     }));
     return [...mine, ...fromCal];
   }
@@ -1098,10 +1101,13 @@
 
   function parseIcs(text) {
     const raw = text.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '').split(/\r?\n/);
-    const out = []; let cur = null;
+    const out = []; let cur = null, inAlarm = false;
     const un = s => s.replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\');
     for (const line of raw) {
-      if (line === 'BEGIN:VEVENT') cur = {};
+      if (line === 'BEGIN:VALARM') inAlarm = true;       // 알림 안의 DESCRIPTION(예: 'This is an event reminder')은 일정 메모가 아님
+      else if (line === 'END:VALARM') inAlarm = false;
+      else if (inAlarm) continue;
+      else if (line === 'BEGIN:VEVENT') cur = {};
       else if (line === 'END:VEVENT') { if (cur) out.push(cur); cur = null; }
       else if (cur) {
         const i = line.indexOf(':'); if (i < 0) continue;

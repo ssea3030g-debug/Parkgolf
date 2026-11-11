@@ -12,8 +12,11 @@ const unesc = s => String(s || '').replace(/\\n/gi, '\n').replace(/\\,/g, ',').r
 
 export function parseIcs(text) {
   const lines = String(text).replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '').split(/\r?\n/);
-  const events = []; let cur = null; let calName = '';
+  const events = []; let cur = null; let calName = ''; let inAlarm = false;
   for (const line of lines) {
+    if (line === 'BEGIN:VALARM') { inAlarm = true; continue; }   // 알림 안의 글('This is an event reminder' 등)은 일정 내용이 아님
+    if (line === 'END:VALARM') { inAlarm = false; continue; }
+    if (inAlarm) continue;
     if (line === 'BEGIN:VEVENT') { cur = {}; continue; }
     if (line === 'END:VEVENT') { if (cur) events.push(cur); cur = null; continue; }
     const i = line.indexOf(':'); if (i < 0) continue;
