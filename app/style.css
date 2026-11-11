@@ -297,3 +297,12 @@ details summary::-webkit-details-marker { display: none; }
 details summary::after { content: "＋"; float: right; color: var(--muted); }
 details[open] summary::after { content: "－"; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* 내기 목록: 줄마다 삭제 버튼 (좁은 화면에서도 이름이 쪼개지지 않게) */
+.list > li.has-del { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
+.list > li.has-del > a { flex: 1; min-width: 0; margin-bottom: 0; flex-wrap: wrap; row-gap: 4px; padding: 12px 14px; }
+.list > li.has-del > a .main { flex: 1 1 7em; }
+.list > li.has-del > a .right { flex: 0 0 auto; margin-left: auto; font-size: .95rem; }
+.del-btn { flex: none; width: 3.4rem; min-width: 56px; border: 0; border-radius: 22px; background: var(--bad-soft); color: var(--bad); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-weight: 800; font-size: .7rem; cursor: pointer; }
+.del-btn svg { width: 1.5rem; height: 1.5rem; }
+.del-btn:active { transform: scale(.96); }
