@@ -183,14 +183,15 @@
     const k = c.lat.toFixed(3) + ',' + c.lon.toFixed(3);
     const hit = wxCache[k];
     if (hit && Date.now() - hit.at < 10 * 60000) return hit.data;
+    let kmaErr = '';
     const [om, aq, kma] = await Promise.all([
       WX.nowWeather(c.lat, c.lon).catch(() => null),
       WX.airQuality(c.lat, c.lon).catch(() => null),
-      srvOn() ? srv(`/weather?lat=${c.lat}&lon=${c.lon}`).catch(() => null) : null
+      srvOn() ? srv(`/weather?lat=${c.lat}&lon=${c.lon}`).catch(e => { kmaErr = e.message || '알 수 없는 오류'; return null; }) : null
     ]);
     const w = WX.mergeKma(om, kma);
     if (!w) throw new Error('날씨 없음');
-    const data = { w, aq, status: WX.assessStatus(c, w, aq) };
+    const data = { w, aq, kmaErr, status: WX.assessStatus(c, w, aq) };
     wxCache[k] = { at: Date.now(), data };
     return data;
   }
@@ -925,6 +926,8 @@
       const fut = D.time.map((t, i) => ({ t, i })).filter(x => x.t > today()).slice(0, 3);
       if (fut.length) h += `<h3>앞으로 3일</h3><div class="hours">${fut.map(({ t, i }) => `<div style="min-width:96px"><b>${fmtDate(t).replace(/^\d+월 /, '')}</b><br>${WX.wxIcon(D.weather_code[i])} ${WX.wxName(D.weather_code[i])}<br>${Math.round(D.temperature_2m_min[i])}°/${Math.round(D.temperature_2m_max[i])}°<br><span class="muted">비 ${D.precipitation_probability_max[i] != null ? D.precipitation_probability_max[i] : '-'}%</span></div>`).join('')}</div>`;
       h += `<p class="muted small">날씨 자료: ${d.w.source === 'kma' ? '기상청 단기예보' : 'Open-Meteo (세계 기상 예보)'} · 미세먼지: Open-Meteo</p>`;
+      if (d.w.source !== 'kma' && d.kmaErr) h += `<div class="note warn"><b>기상청 연결이 안 되어 기본 날씨를 보여 줘요</b>${esc(d.kmaErr)}<br><span class="small">설정 → 서버 연결에서 ‘저장하고 확인’을 눌러 보세요.</span></div>`;
+      else if (d.w.source !== 'kma' && !srvOn()) h += `<p class="muted small">기상청 날씨를 쓰려면 설정 → 서버 연결에 서버 주소를 넣어 주세요.</p>`;
       box.innerHTML = h;
     } catch (e) { box.innerHTML = `<div class="note bad"><b>날씨를 불러오지 못했어요</b>인터넷 연결을 확인하고 다시 열어 주세요.</div>`; }
   }

@@ -123,3 +123,16 @@ test('구조화 출력 스키마는 모든 칸이 필수', () => {
   assert.deepStrictEqual(SCHEMA.required.sort(), Object.keys(SCHEMA.properties).sort());
   assert.match(buildPrompt({ mode: 'overall', overall: { count: 3 } }), /플레이 스타일/);
 });
+
+test('기상청이 NO_DATA 를 주면 이전 발표 시각으로 다시 시도', async () => {
+  const calls = [];
+  const f = async (url) => {
+    const u = new URL(url); const op = u.pathname.split('/').pop(); calls.push(op + ':' + u.searchParams.get('base_time'));
+    if (op === 'getVilageFcst' && u.searchParams.get('base_time') === '0500') return new Response(JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NO_DATA' } } }));
+    if (op === 'getUltraSrtNcst' && u.searchParams.get('base_time') === '0600') return new Response(JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NO_DATA' } } }));
+    return fakeKma(url);
+  };
+  const w = await kmaWeather({ lat: 37.51, lon: 126.99, key: 'k', fetcher: f, now: new Date('2026-11-10T06:20:00+09:00') });
+  assert.ok(calls.includes('getVilageFcst:0200'), '예보는 이전 발표(02시)로 재시도: ' + calls.join(','));
+  assert.ok(w.hourly.time.length > 0);
+});

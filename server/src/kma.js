@@ -97,10 +97,22 @@ async function call(fetcher, key, op, params) {
 export async function kmaWeather({ lat, lon, key, fetcher = fetch, now = new Date() }) {
   const { nx, ny } = toGrid(lat, lon);
   const nb = ncstBase(now), fb = fcstBase(now);
-  const [ncst, fcst] = await Promise.all([
-    call(fetcher, key, 'getUltraSrtNcst', { ...nb, nx, ny, numOfRows: '60' }).catch(() => []),
-    call(fetcher, key, 'getVilageFcst', { ...fb, nx, ny, numOfRows: '1500' })
-  ]);
+  const getFcst = async () => {
+    try { return await call(fetcher, key, 'getVilageFcst', { ...fb, nx, ny, numOfRows: '1500' }); } catch (e) {
+      // 막 발표된 자료가 아직 올라오지 않았을 때(NO_DATA 등): 이전 발표 시각으로 한 번 더
+      if (!/\b0?3\b|NO_DATA|형식 다름/.test(String(e.message))) throw e;
+      const prev = fcstBase(new Date(now.getTime() - 3 * 3600000));
+      fb.base_date = prev.base_date; fb.base_time = prev.base_time;
+      return call(fetcher, key, 'getVilageFcst', { ...fb, nx, ny, numOfRows: '1500' });
+    }
+  };
+  const getNcst = async () => {
+    try { return await call(fetcher, key, 'getUltraSrtNcst', { ...nb, nx, ny, numOfRows: '60' }); } catch (e) {
+      const prev = ncstBase(new Date(now.getTime() - 3600000));
+      try { return await call(fetcher, key, 'getUltraSrtNcst', { ...prev, nx, ny, numOfRows: '60' }); } catch (e2) { return []; }
+    }
+  };
+  const [ncst, fcst] = await Promise.all([getNcst(), getFcst()]);
 
   // 시간별 묶기
   const byTime = new Map();
