@@ -134,6 +134,36 @@
     }));
     return [...mine, ...fromCal];
   }
+  /* 일정 제목·장소에 골프장 이름이 들어 있으면 그 골프장으로 들어가는 버튼 (내 골프장 먼저, 없으면 전국 목록에서) */
+  const nrmS = x => String(x || '').replace(/[^가-힣A-Za-z0-9]/g, '').toLowerCase();
+  const coreS = x => nrmS(x).replace(/파크골프장|파크골프|골프장|구장/g, '');
+  const NAME_STOP = new Set(['한강', '생태', '체육', '시민', '근린', '강변', '하천', '공원', '제1', '제2', '시립', '구립', '군립']);
+  function nameKeys(name) { // 골프장 이름에서 일정에 쓰일 만한 낱말들: 전체 이름, 그리고 낱말별 ('한강 반포 파크골프장' → 한강반포, 반포)
+    const keys = new Set(); const full = coreS(name); if (full.length >= 2) keys.add(full);
+    for (const t of String(name || '').split(/[\s()\[\]·,_\-]+/)) { for (const k of [coreS(t), coreS(t).replace(/공원$/, '')]) if (k.length >= 2 && !NAME_STOP.has(k)) keys.add(k); }
+    return [...keys];
+  }
+  function courseFor(e) {
+    const text = nrmS((e.title || '') + ' ' + (e.place || ''));
+    if (e.courseId && course(e.courseId)) return { mine: course(e.courseId) };
+    let best = null, bs = 0;
+    const consider = (kind, c, name) => {
+      // 내 골프장은 이름의 일부(2글자 이상)만 있어도, 전국 목록은 3글자 이상이거나 전체 이름일 때만 (엉뚱한 곳으로 안 가게)
+      const full = coreS(name);
+      const hit = nameKeys(name).filter(k => text.includes(k) && (kind === 'mine' ? k.length >= 2 : (k.length >= 3 || k === full)));
+      if (!hit.length) return;
+      const sc = Math.max(...hit.map(k => k.length)) + (kind === 'mine' ? 100 : 0);
+      if (sc > bs) { bs = sc; best = { [kind]: c }; }
+    };
+    db.courses.forEach(c => consider('mine', c, c.name));
+    if (GL && GL.items) GL.items.forEach(x => consider('item', x, x.n));
+    return best;
+  }
+  function courseBtn(e) {
+    const m = courseFor(e); if (!m) return '';
+    return m.mine ? `<a class="btn block" href="#course-${m.mine.id}" style="margin-bottom:10px">${I('flag')} ${esc(m.mine.name)} 보기</a>`
+      : `<button type="button" class="btn block" data-act="ev-course" data-i="${m.item.i}" style="margin-bottom:10px">${I('flag')} ${esc(m.item.n)} 보기</button>`;
+  }
   const byWhen = (a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''));
   const agoText = at => { const m = Math.round((Date.now() - at) / 60000); return m < 1 ? '방금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`; };
 
@@ -209,14 +239,15 @@
     const name = db.settings.name;
     const h = new Date().getHours();
     const hello = h < 11 ? '좋은 아침이에요' : h < 17 ? '안녕하세요' : '편안한 저녁 되세요';
-    const next = allEvents().filter(e => e.date >= today()).sort(byWhen)[0];
+    const ups = allEvents().filter(e => e.date >= today()).sort(byWhen).slice(0, 3);
     const fav = db.courses.find(c => c.fav) || db.courses[0];
     const last = [...db.rounds].sort((a, b) => b.date.localeCompare(a.date))[0];
-    const live = db.bets.find(b => b.status === 'playing');
     let html = `<section class="card hero"><p class="big" style="margin:0">${name ? esc(name) + '님, ' : ''}${hello}</p><p class="muted" style="margin:4px 0 0">${fmtDate(today(), true)}</p>`;
     if (!name) html += `<hr><p>이름을 알려 주시면 내기 정산에 '나'로 표시돼요.</p><a class="btn block" href="#more">이름 넣기</a>`;
     html += `</section>`;
-    if (live) html += `<a class="btn primary block xl" href="#bet-play-${live.id}" style="margin-bottom:16px">하던 내기 이어서 하기</a>`;
+    html += `<section class="card"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-bottom:6px"><h2 style="margin:0">다가오는 일정</h2><a href="#schedule" style="font-weight:800;white-space:nowrap">모두 보기</a></div>${ups.length
+      ? ups.map(e => `<a class="ev-row" href="#schedule"><span class="dday">${dday(e.date)}</span><span class="ev-main"><span class="ev-title">${esc(e.title)}</span><span class="ev-sub">${fmtDate(e.date)}${e.time ? ' ' + fmtTime(e.time) : ''}${e.place ? ' · ' + esc(e.place) : ''}</span></span></a>`).join('')
+      : `<p class="muted" style="margin:8px 0 12px">다가오는 일정이 없어요.</p><a class="btn block" href="#event-new">일정 추가하기</a>`}</section>`;
     html += `<div class="menu-grid" style="margin-bottom:14px">
       <a href="#round-new"><span class="ico">${I('note')}</span>성적 기록하기</a>
       <a href="#bet-new"><span class="ico">${I('coin')}</span>내기 시작</a>
@@ -227,7 +258,6 @@
       <a href="#stretch"><span class="ico">${I('run')}</span>몸풀기 체조</a>
       <a href="#more"><span class="ico">${I('sliders')}</span>설정·백업</a>
     </div>`;
-    if (next) html += `<section class="card"><h2>다음 일정 <span class="dday">${dday(next.date)}</span></h2><p class="big" style="margin:0">${esc(next.title)}</p><p>${fmtDate(next.date)} ${fmtTime(next.time)}${next.place ? ' · ' + esc(next.place) : ''}</p><a class="btn block" href="#schedule">일정 모두 보기</a></section>`;
     if (fav) html += `<section class="card"><h2>${esc(fav.name)} 지금</h2><div id="homeWx"><p class="muted"><span class="spinner"></span> 날씨를 불러오는 중…</p></div><a class="btn block" href="#course-${fav.id}">자세히 보기</a></section>`;
     if (last) {
       const t = PG.roundTotals(last);
@@ -908,6 +938,7 @@
     }
     afterAdd(c);
   };
+  acts['ev-course'] = el => acts['cs-add-local'](el); // 전국 목록의 골프장이면 내 골프장에 넣고 그 화면으로
   acts['cs-add'] = el => {
     const r = searchState.results[Number(el.dataset.i)];
     let c = db.courses.find(x => x.name === r.name);
@@ -1052,6 +1083,7 @@
       return `<section class="card"><div class="ev-head"><span class="ev-ico">${EV_ICON[e.type] || EV_ICON["기타"]}</span><span class="dday">${dday(e.date)}</span></div><p class="big" style="margin:10px 0 2px">${esc(e.title)}</p><p style="margin:0;font-weight:600">${fmtDate(e.date)} ${fmtTime(e.time)}</p>${e.place ? `<p class="muted" style="margin:0">${esc(e.place)}</p>` : ''}
         ${e.memo ? `<p class="muted small" style="white-space:pre-wrap">${esc(e.memo)}</p>` : ''}
         <div style="height:10px"></div>
+        ${courseBtn(e)}
         ${e.cal ? `<p class="muted small" style="margin:0"><span class="tag info">캘린더</span> 삼성·구글 캘린더에서 가져왔어요${e.repeat ? ' (반복 일정)' : ''}. 고치려면 캘린더에서 고쳐 주세요.</p></section>` : ''}
         ${e.cal ? '' : ''}${!e.cal && e.date >= today() ? `<div class="btn-row"><button class="btn" data-act="ev-ics" data-id="${e.id}">삼성 캘린더</button><a class="btn" href="${gcalUrl(e)}" target="_blank" rel="noopener">구글 캘린더</a></div><div style="height:10px"></div>` : ''}
         ${rec ? `<button class="btn primary block" data-act="ev-record" data-id="${e.id}">이 대회 성적 기록하기</button><div style="height:10px"></div>` : ''}
@@ -1069,7 +1101,7 @@
       <p><b>가져오기:</b> 삼성 캘린더 일정을 파일(.ics)로 내보낸 뒤 ‘캘린더에서 가져오기’로 고르면 <b>파크골프·골프·대회</b>가 들어간 일정만 골라서 가져와요.</p>
       <p class="muted small">휴대폰 보안 때문에 이 앱이 삼성 캘린더를 직접 읽거나 바꾸지는 못해요.</p></details></section>`;
     if (past.length) html += `<h2 class="section-title">지난 일정</h2>${past.map(card).join('')}`;
-    return { title: '파크골프 일정', html, after: () => { $('#ev-import').addEventListener('change', importIcs); if (calOn()) refreshCal(false); } };
+    return { title: '파크골프 일정', html, after: () => { $('#ev-import').addEventListener('change', importIcs); const had = GL !== null; loadGL().then(() => { if (!had && parse().name === 'schedule') render(); }); if (calOn()) refreshCal(false); } };
   };
   async function refreshCal(force) {
     const st = () => $('#calStatus');
@@ -1194,7 +1226,15 @@
     </section>
     <button type="button" class="btn primary block xl" data-act="ef-save">저장</button>
     <p class="muted small center">저장한 뒤 ‘삼성 캘린더’ 버튼으로 휴대폰 캘린더에 넣을 수 있어요.</p>`;
-    return { title, html, back };
+    return { title, html, back, after: () => {
+      // 장소 칸 제안에 전국 골프장 이름도 넣기 (입력해 둔 글자는 그대로)
+      const fillList = () => { const dl = $('#ef-courses'); if (!dl) return; const names = [...new Set([...db.courses.map(c => c.name), ...((GL && GL.items) || []).map(x => x.n)])]; dl.innerHTML = names.map(n => `<option value="${esc(n)}">`).join(''); };
+      loadGL().then(fillList);
+      // 제목에 골프장 이름이 들어 있고 장소가 비어 있으면 장소를 자동으로 채움
+      const t = $('#ef-title'), pl = $('#ef-place');
+      const guess = () => { if (!pl.value.trim()) { const m = courseFor({ title: t.value, place: '' }); const nm = m && (m.mine ? m.mine.name : m.item.n); if (nm) { pl.value = nm; toast(`장소를 ‘${nm}’(으)로 넣었어요`); } } };
+      t.addEventListener('change', guess);
+    } };
   }
   acts['ef-type'] = el => { evDraft.type = el.dataset.v; document.querySelectorAll('[data-act="ef-type"]').forEach(b => b.setAttribute('aria-pressed', b === el)); };
   acts['ef-save'] = () => {

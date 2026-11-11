@@ -306,3 +306,11 @@ details[open] summary::after { content: "－"; }
 .sel-bar { position: fixed; left: 0; right: 0; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom)); z-index: 15; display: grid; grid-template-columns: 1fr 1.2fr 1.4fr; gap: 8px;
   padding: 10px max(12px, calc((100vw - 680px) / 2 + 12px)); background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid var(--line); }
 .sel-bar .btn { min-height: 56px; padding: 6px 8px; font-size: .95rem; }
+
+/* 처음 화면: 다가오는 일정 줄 */
+.ev-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); text-decoration: none; color: var(--ink); }
+.ev-row:first-of-type { border-top: 0; }
+.ev-row .dday { flex: none; margin-top: 2px; }
+.ev-main { display: flex; flex-direction: column; min-width: 0; }
+.ev-title { font-weight: 800; letter-spacing: -0.02em; }
+.ev-sub { color: var(--muted); font-size: .85rem; }
