@@ -29,6 +29,7 @@
   --shadow-sm: 0 1px 2px rgba(17, 30, 24, .06), 0 2px 8px rgba(17, 30, 24, .05);
   --radius: 24px;
   --fs: 20px;
+  --vw: 5.6vw;   /* 화면 너비에 맞춘 글자 크기 상한 (좁은 화면에서 깨지지 않게) */
   --tab-h: 76px;
   --glass: rgba(242, 245, 243, .82);
 }
@@ -52,25 +53,26 @@
   --t5: #c1a3ff; --t5s: #2b2142; --t6: #6fd6e0; --t6s: #153136; --t7: #9fa9ff; --t7s: #202448; --t8: #c0cbc5; --t8s: #252e29;
   --shadow: 0 0 0 1px rgba(255, 255, 255, .04); --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .04); --glass: rgba(14, 19, 17, .82);
 }
-:root[data-size="big"]  { --fs: 23px; }
-:root[data-size="huge"] { --fs: 27px; }
+:root[data-size="big"]  { --fs: 23px; --vw: 6.4vw; }
+:root[data-size="huge"] { --fs: 27px; --vw: 7.5vw; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { font-size: var(--fs); -webkit-text-size-adjust: 100%; }
+html { font-size: max(16px, min(var(--fs), var(--vw))); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: "Pretendard Variable", Pretendard, "SamsungOne Korean", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   line-height: 1.5; letter-spacing: -0.01em; word-break: keep-all; overflow-wrap: break-word;
   padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 24px);
 }
-button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; max-width: 100%; }
+img, svg { max-width: 100%; }
 a { color: var(--info); }
 svg.i { width: 1.25em; height: 1.25em; flex: none; display: inline-block; vertical-align: -0.2em; }
 
 /* ── 상단 ─────────────────────────────── */
 .topbar {
   position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px;
-  min-height: 68px; padding: calc(env(safe-area-inset-top) + 10px) 16px 10px;
+  min-height: 68px; padding: calc(env(safe-area-inset-top) + 10px) max(16px, calc((100vw - 680px) / 2 + 16px)) 10px;
   background: var(--glass); -webkit-backdrop-filter: saturate(1.4) blur(14px); backdrop-filter: saturate(1.4) blur(14px);
 }
 .topbar h1 { font-size: 1.3rem; margin: 0; flex: 1; font-weight: 800; letter-spacing: -0.03em; min-width: 0; }
@@ -85,7 +87,7 @@ main { max-width: 680px; margin: 0 auto; padding: 8px 16px 16px; }
 /* ── 하단 탭 ───────────────────────────── */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: var(--glass);
+  padding: 8px max(8px, calc((100vw - 680px) / 2)) calc(8px + env(safe-area-inset-bottom)); background: var(--glass);
   -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px); border-top: 1px solid var(--line);
 }
 .tabbar a {
@@ -172,14 +174,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 /* ── 타수 버튼 ─────────────────────────── */
 .stepper { display: inline-flex; align-items: center; gap: 8px; }
 .stepper button {
-  width: 60px; height: 60px; border-radius: 20px; border: 0; background: var(--primary-soft); color: var(--primary);
+  width: 2.6rem; height: 2.6rem; min-width: 52px; min-height: 52px; border-radius: 20px; border: 0; background: var(--primary-soft); color: var(--primary);
   font-size: 1.7rem; font-weight: 800; line-height: 1; cursor: pointer;
 }
 .stepper button.plus { background: var(--primary); color: var(--primary-ink); box-shadow: 0 4px 12px rgba(10, 122, 74, .22); }
 .stepper button:active { transform: scale(.94); }
-.stepper .val { min-width: 2.1em; text-align: center; font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stepper .val { min-width: 1.6em; text-align: center; font-size: 1.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 
-.hole-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.hole-row, .player-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.hole-row > :first-child, .player-row > :first-child { flex: 1 1 7.5em; min-width: 0; }
+.hole-row > .stepper, .player-row > .stepper { margin-left: auto; }
 .hole-row:last-child { border-bottom: 0; }
 .hole-name { font-weight: 800; }
 .par-chip {
@@ -249,7 +253,6 @@ td.s-over2 { background: var(--bad-soft) !important; color: var(--bad); font-wei
 .dots button { width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--card-2); font-weight: 800; font-size: .8rem; cursor: pointer; color: var(--ink-2); }
 .dots button.done { background: var(--primary-soft); color: var(--primary); }
 .dots button.cur { background: var(--primary); color: var(--primary-ink); box-shadow: 0 4px 10px rgba(10, 122, 74, .25); }
-.player-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .player-row:last-child { border-bottom: 0; }
 .player-row .name { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em; }
 .rank-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }

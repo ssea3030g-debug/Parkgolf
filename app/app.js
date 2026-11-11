@@ -615,7 +615,7 @@
     if (!bdraft) {
       const me = db.settings.name;
       const fav = db.courses.find(c => c.fav) || db.courses[0];
-      bdraft = Object.assign({ players: me ? [me] : [], unit: 1000, mode: 'stroke', carry: false, bonus: false, totalsOnly: false, nHoles: 18, place: fav ? fav.name : '' }, window._betPrefill || {});
+      bdraft = Object.assign({ players: me ? [me] : [], unit: 1000, mode: 'hole', carry: false, bonus: false, totalsOnly: false, nHoles: 18, place: fav ? fav.name : '' }, window._betPrefill || {});
       window._betPrefill = null;
     }
     const d = bdraft;
@@ -631,8 +631,8 @@
       <label class="field" style="margin-top:12px"><span>직접 넣기 (원)</span><input type="number" inputmode="numeric" id="bn-unit" value="${d.unit}" step="100" min="0"></label>
     </section>
     <section class="card"><h2>3. 내기 방식</h2>
-      <div class="seg">${[['stroke', '타당'], ['hole', '홀 이기기']].map(([v, l]) => `<button type="button" class="chip" data-act="bn-mode" data-v="${v}" aria-pressed="${d.mode === v}">${l}</button>`).join('')}</div>
-      <div class="note info">${d.mode === 'stroke' ? '<b>타당</b>다 친 뒤 사람마다 서로 타수 차이만큼 주고받아요. 예) 나 70타, 영희 73타, 점당 1,000원 → 영희가 나에게 3,000원.' : '<b>홀 이기기</b>홀마다 혼자 제일 적게 친 사람이 다른 사람들에게 1점씩 받아요. 같은 타수가 있으면 그 홀은 비겨요.'}</div>
+      <div class="seg">${[['hole', '홀 이기기 (이긴 사람이 받음)'], ['stroke', '타당 (합계 타수 차이)']].map(([v, l]) => `<button type="button" class="chip" data-act="bn-mode" data-v="${v}" aria-pressed="${d.mode === v}">${l}</button>`).join('')}</div>
+      <div class="note info">${d.mode === 'stroke' ? '<b>타당</b>다 친 뒤 사람마다 서로 타수 차이만큼 주고받아요. 예) 나 70타, 영희 73타, 점당 1,000원 → 영희가 나에게 3,000원.' : '<b>홀 이기기</b>홀마다 <b>제일 적게 친 사람</b>이 그 홀의 승자예요. 승자는 다른 분들에게서 점당 금액을 받아요. 예) 점당 1,000원, 3명이 치면 승자가 2,000원 받아요. 같은 타수가 둘 이상이면 그 홀은 비겨요.'}</div>
       ${d.mode === 'hole' ? `<button type="button" class="check" data-act="bn-toggle" data-k="carry" aria-pressed="${d.carry}"><span class="box">${d.carry ? '✓' : ''}</span><span class="lbl">비기면 다음 홀로 점수 쌓기 (이월)</span></button>` : ''}
       <button type="button" class="check" data-act="bn-toggle" data-k="bonus" aria-pressed="${d.bonus}" ${d.totalsOnly ? 'disabled' : ''}><span class="box">${d.bonus ? '✓' : ''}</span><span class="lbl">버디 보너스 (버디 1점, 홀인원 3점씩 더 받기)</span></button>
     </section>
@@ -689,18 +689,27 @@
     } else {
       const i = b.cur, par = b.pars[i], n = b.pars.length;
       const sec = Math.floor(i / 9), names = PG.SECTION_NAMES;
-      html += `<section class="card center"><p class="muted" style="margin:0">${names[sec] || ''} 코스</p><p class="huge" style="margin:4px 0">${i + 1}번 홀</p><button type="button" class="par-chip" data-act="bp-par" style="font-size:1.1rem;padding:6px 18px">기준 파${par} (눌러서 바꾸기)</button>
+      html += `<section class="card center"><p class="muted" style="margin:0">${names[sec] || ''} 코스 · 점당 ${wonPlain(b.unit)}${b.mode === 'hole' ? ' · 홀 이기기' : ''}</p><p class="huge" style="margin:4px 0">${i + 1}번 홀</p><button type="button" class="par-chip" data-act="bp-par" style="font-size:1.1rem;padding:6px 18px">기준 파${par} (눌러서 바꾸기)</button>
         <div class="dots" aria-label="홀 고르기">${b.pars.map((_, k) => `<button type="button" data-act="bp-go" data-k="${k}" class="${k === i ? 'cur' : b.players.every(p => b.scores[p][k]) ? 'done' : ''}" aria-label="${k + 1}번 홀">${k + 1}</button>`).join('')}</div></section>
+      ${holeBanner(b, i)}
       <section class="card">${b.players.map((p, pi) => { const v = b.scores[p][i] || par; return `<div class="player-row"><div><span class="name">${esc(p)}</span><br><span class="muted small">지금까지 ${s.totals[p] - (b.scores[p][i] || 0) + v}타</span> ${holeTag(v, par)}</div><div class="stepper"><button type="button" data-act="bp-step" data-p="${pi}" data-d="-1" aria-label="${esc(p)} 한 타 빼기">－</button><span class="val">${v}</span><button type="button" class="plus" data-act="bp-step" data-p="${pi}" data-d="1" aria-label="${esc(p)} 한 타 더하기">＋</button></div></div>`; }).join('')}</section>
       <div class="btn-row"><button type="button" class="btn" data-act="bp-prev" ${i === 0 ? 'disabled' : ''}>이전 홀</button>${i < n - 1 ? `<button type="button" class="btn primary" data-act="bp-next">다음 홀</button>` : `<button type="button" class="btn primary" data-act="bp-finish" data-id="${b.id}">정산하기</button>`}</div>
       <div style="height:16px"></div>${liveBox(b, s)}
       ${i < n - 1 ? `<button type="button" class="btn ghost block" data-act="bp-finish" data-id="${b.id}">여기까지만 하고 정산하기</button>` : ''}`;
     }
     html += `<div style="height:10px"></div><button type="button" class="btn danger block" data-act="bp-del" data-id="${b.id}">이 내기 지우기</button>`;
-    return { title: `내기 · 점당 ${wonPlain(b.unit)}`, html, back: 'bets', after: () => {
+    return { title: '내기', html, back: 'bets', after: () => {
       document.querySelectorAll('[data-tot]').forEach(inp => inp.addEventListener('change', () => { b.totals[b.players[inp.dataset.tot]] = Math.max(0, Number(inp.value) || 0); save(); refreshLive(b); }));
     } };
   };
+  /* 이 홀의 승자와 받을 돈 (홀 이기기 방식) */
+  function holeBanner(b, i) {
+    if (b.mode !== 'hole' || !b.players.every(p => b.scores[p][i])) return '';
+    const l = PG.settleBet(b).log.find(x => x.hole === i + 1 && !x.bonus);
+    if (!l) return '';
+    if (!l.winner) return `<div class="note info"><b>${i + 1}번 홀은 비겼어요</b>${b.carry ? '이번 점수는 다음 홀로 넘어가요.' : '주고받는 돈이 없어요.'}</div>`;
+    return `<div class="note good"><b>${esc(l.winner)}님이 이겼어요!</b>다른 분들에게서 ${wonPlain(l.pot * b.unit)}씩, 모두 ${wonPlain(l.pot * b.unit * (b.players.length - 1))} 받아요.</div>`;
+  }
   function liveBox(b, s) {
     return `<section class="card" id="liveBox"><h2>지금 정산하면 ${b.totalsOnly ? '' : `<span class="muted small">(${s.holesDone}홀까지)</span>`}</h2>${[...b.players].sort((x, y) => s.money[y] - s.money[x]).map(p => `<div class="row" style="padding:6px 0"><span class="grow"><b>${esc(p)}</b> <span class="muted small">${s.totals[p]}타</span></span><span class="big ${s.money[p] > 0 ? 'money-plus' : s.money[p] < 0 ? 'money-minus' : ''}">${won(s.money[p])}</span></div>`).join('')}</section>`;
   }
