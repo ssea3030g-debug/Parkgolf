@@ -298,11 +298,11 @@ details summary::after { content: "＋"; float: right; color: var(--muted); }
 details[open] summary::after { content: "－"; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
-/* 내기 목록: 줄마다 삭제 버튼 (좁은 화면에서도 이름이 쪼개지지 않게) */
-.list > li.has-del { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
-.list > li.has-del > a { flex: 1; min-width: 0; margin-bottom: 0; flex-wrap: wrap; row-gap: 4px; padding: 12px 14px; }
-.list > li.has-del > a .main { flex: 1 1 7em; }
-.list > li.has-del > a .right { flex: 0 0 auto; margin-left: auto; font-size: .95rem; }
-.del-btn { flex: none; width: 3.4rem; min-width: 56px; border: 0; border-radius: 22px; background: var(--bad-soft); color: var(--bad); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-weight: 800; font-size: .7rem; cursor: pointer; }
-.del-btn svg { width: 1.5rem; height: 1.5rem; }
-.del-btn:active { transform: scale(.96); }
+/* 내기 목록: '삭제' 누른 뒤 고르기 */
+.list .selrow { cursor: pointer; }
+.list .selrow[aria-pressed="true"] { background: var(--bad-soft); box-shadow: inset 0 0 0 3px var(--bad); }
+.selbox { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 12px; border: 3px solid var(--muted); display: grid; place-items: center; font-weight: 900; font-size: 1.3rem; color: var(--primary-ink); }
+.selrow[aria-pressed="true"] .selbox { background: var(--bad); border-color: var(--bad); color: #fff; }
+.sel-bar { position: fixed; left: 0; right: 0; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom)); z-index: 15; display: grid; grid-template-columns: 1fr 1.2fr 1.4fr; gap: 8px;
+  padding: 10px max(12px, calc((100vw - 680px) / 2 + 12px)); background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid var(--line); }
+.sel-bar .btn { min-height: 56px; padding: 6px 8px; font-size: .95rem; }

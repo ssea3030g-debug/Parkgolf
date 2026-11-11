@@ -12,6 +12,7 @@
   const KEY = 'parkgolf.v1';
   const blank = () => ({ courses: [], rounds: [], bets: [], events: [], players: [], settings: { name: '', size: 'big', theme: 'auto', alarms: ['1d', '2h'], server: { url: '', pass: '' }, cal: { url: '', keywords: '파크골프, 파크, 골프, 대회' } }, calCache: null, checklist: { date: '', checked: {} }, aiOverall: null });
   const JUNK_MEMO = /^\s*this is an event reminder\.?\s*$/i; // 알림 기본 문구가 메모로 잘못 들어간 것
+  let betSel = null; // 내기 목록에서 '삭제'를 눌렀을 때 고른 내기 (null: 고르는 중 아님)
   let db = load();
   (db.events || []).forEach(e => { if (JUNK_MEMO.test(e.memo || '')) e.memo = ''; });
   if (db.calCache) db.calCache = null; // 예전 캐시에 잘못된 메모가 있을 수 있어 새로 받음
@@ -156,6 +157,7 @@
   function render() {
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     const r = parse();
+    if (r.name !== 'bets') betSel = null; // 다른 화면으로 가면 고르기 끝
     const v = views[r.name] || views.home;
     let out;
     try { out = v(r.id) || {}; } catch (e) { console.error(e); out = { title: '오류', html: `<div class="note bad"><b>화면을 여는 중 문제가 생겼어요</b>${esc(e.message)}</div>` }; }
@@ -601,30 +603,47 @@
   }
 
   /* ════════════════ 내기 ════════════════ */
-  const delBtn = id => `<button type="button" class="del-btn" data-act="bet-del-list" data-id="${id}" aria-label="이 내기 지우기">${I('trash')}<span>삭제</span></button>`;
-  acts['bet-del-list'] = async el => {
-    const b = byId(db.bets, el.dataset.id); if (!b) return;
-    const sub = `${b.players.join('·')} (${fmtDate(b.date)}${b.status === 'done' ? '' : ', 하던 중'})`;
-    if (await ask('이 내기를 지울까요?', `${sub} 내기가 지워지고 되돌릴 수 없어요. 지금까지 내기 합계에서도 빠져요.`, '지우기', true)) {
-      db.bets = db.bets.filter(x => x.id !== b.id); save(); toast('내기를 지웠어요'); render();
+  /* 내기 목록: '삭제' 버튼을 누르면 지울 내기를 골라서 한꺼번에 지움 */
+  const selCount = () => (betSel ? betSel.size : 0);
+  function betRow(b) {
+    const s = PG.settleBet(b), live = b.status === 'playing';
+    const me = db.settings.name, mine = !live && me && b.players.includes(me) ? s.money[me] : null;
+    const sub = live ? `${fmtDate(b.date)} · 점당 ${wonPlain(b.unit)}` : `${fmtDate(b.date)}${b.place ? ' · ' + esc(b.place) : ''} · ${b.totalsOnly ? '합계' : b.mode === 'hole' ? '홀 이기기' : '타당'}`;
+    const right = live ? '<span class="right small">하던 중</span>' : (mine != null ? `<span class="right ${mine > 0 ? 'money-plus' : mine < 0 ? 'money-minus' : ''}">${won(mine)}</span>` : '');
+    const body = `<span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${sub}</span></span>${right}`;
+    if (betSel) {
+      const on = betSel.has(b.id);
+      return `<li><button type="button" class="item selrow" data-act="bet-sel" data-id="${b.id}" aria-pressed="${on}"><span class="selbox" aria-hidden="true">${on ? '✓' : ''}</span>${body}</button></li>`;
     }
+    return `<li><a href="#bet-${live ? 'play-' : ''}${b.id}"><span class="ico">${I(live ? 'clock' : 'coin')}</span>${body}</a></li>`;
+  }
+  acts['bet-sel-mode'] = () => { betSel = new Set(); render(); };
+  acts['bet-sel-cancel'] = () => { betSel = null; render(); };
+  acts['bet-sel'] = el => { const id = el.dataset.id; if (betSel.has(id)) betSel.delete(id); else betSel.add(id); const y = window.scrollY; render(); window.scrollTo(0, y); };
+  acts['bet-sel-all'] = () => { betSel = betSel.size === db.bets.length ? new Set() : new Set(db.bets.map(b => b.id)); const y = window.scrollY; render(); window.scrollTo(0, y); };
+  acts['bet-sel-delete'] = async () => {
+    const n = selCount(); if (!n) return toast('지울 내기를 눌러서 골라 주세요');
+    if (!(await ask(`내기 ${n}개를 지울까요?`, '지우면 되돌릴 수 없어요. 지금까지 내기 합계에서도 빠져요.', `${n}개 지우기`, true))) return;
+    const ids = betSel; db.bets = db.bets.filter(b => !ids.has(b.id)); save(); betSel = null; toast(`내기 ${n}개를 지웠어요`); render();
   };
   views.bets = () => {
     const live = db.bets.filter(b => b.status === 'playing');
     const done = db.bets.filter(b => b.status === 'done').sort((a, b) => b.date.localeCompare(a.date));
-    let html = `<a class="btn primary block xl" href="#bet-new">＋ 새 내기 시작하기</a>`;
-    if (live.length) html += `<h2 class="section-title">하고 있는 내기</h2><ul class="list">${live.map(b => `<li class="has-del"><a href="#bet-play-${b.id}"><span class="ico">${I('clock')}</span><span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${fmtDate(b.date)} · 점당 ${wonPlain(b.unit)}</span></span><span class="right small">이어서<br>하기</span></a>${delBtn(b.id)}</li>`).join('')}</ul>`;
+    let html = '';
+    if (betSel) html += `<div class="note warn"><b>지울 내기를 눌러서 고르세요</b>고른 것은 ✓ 표시가 돼요. 다 고르면 아래 ‘지우기’를 누르세요.</div>`;
+    else html += `<a class="btn primary block xl" href="#bet-new">＋ 새 내기 시작하기</a>` + (db.bets.length ? `<div style="height:10px"></div><button type="button" class="btn danger block" data-act="bet-sel-mode">${I('trash')} 삭제</button>` : '');
+    if (live.length) html += `<h2 class="section-title">하고 있는 내기</h2><ul class="list">${live.map(betRow).join('')}</ul>`;
     // 누적
     const me = db.settings.name;
     const acc = {};
     for (const b of done) { const s = PG.settleBet(b); for (const p of b.players) acc[p] = (acc[p] || 0) + s.money[p]; }
     const names = Object.keys(acc).sort((a, b) => acc[b] - acc[a]);
-    if (names.length) html += `<section class="card"><h2>지금까지 내기 합계</h2>${names.map(p => `<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="grow big">${esc(p)}${p === me ? ' <span class="tag info">나</span>' : ''}</span><span class="big ${acc[p] > 0 ? 'money-plus' : acc[p] < 0 ? 'money-minus' : ''}">${won(acc[p])}</span></div>`).join('')}<p class="muted small">＋는 딴 돈, −는 잃은 돈이에요.</p></section>`;
-    if (done.length) html += `<h2 class="section-title">지난 내기</h2><ul class="list">${done.map(b => { const s = PG.settleBet(b); const mine = me && b.players.includes(me) ? s.money[me] : null; return `<li class="has-del"><a href="#bet-${b.id}"><span class="ico">${I('coin')}</span><span class="main"><span class="title">${esc(b.players.join(' · '))}</span><span class="sub">${fmtDate(b.date)}${b.place ? ' · ' + esc(b.place) : ''} · ${b.totalsOnly ? '합계' : b.mode === 'hole' ? '홀 이기기' : '타당'}</span></span>${mine != null ? `<span class="right ${mine > 0 ? 'money-plus' : mine < 0 ? 'money-minus' : ''}">${won(mine)}</span>` : ''}</a>${delBtn(b.id)}</li>`; }).join('')}</ul>`;
+    if (names.length && !betSel) html += `<section class="card"><h2>지금까지 내기 합계</h2>${names.map(p => `<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="grow big">${esc(p)}${p === me ? ' <span class="tag info">나</span>' : ''}</span><span class="big ${acc[p] > 0 ? 'money-plus' : acc[p] < 0 ? 'money-minus' : ''}">${won(acc[p])}</span></div>`).join('')}<p class="muted small">＋는 딴 돈, −는 잃은 돈이에요.</p></section>`;
+    if (done.length) html += `<h2 class="section-title">지난 내기</h2><ul class="list">${done.map(betRow).join('')}</ul>`;
     else if (!live.length) html += `<div class="empty"><span class="ico">${I('coin')}</span>함께 친 분들 이름과 점당 금액만 정하면<br>타수를 넣을 때마다 자동으로 정산해 드려요.</div>`;
-    return { title: '내기', html };
+    if (betSel) html += `<div style="height:92px"></div><div class="sel-bar"><button type="button" class="btn ghost" data-act="bet-sel-cancel">취소</button><button type="button" class="btn ghost" data-act="bet-sel-all">${betSel.size === db.bets.length ? '전체 해제' : '전체 선택'}</button><button type="button" class="btn danger" data-act="bet-sel-delete" ${betSel.size ? '' : 'disabled'}>${betSel.size ? betSel.size + '개 ' : ''}지우기</button></div>`;
+    return { title: betSel ? `지울 내기 고르기${betSel.size ? ' · ' + betSel.size + '개' : ''}` : '내기', html, back: betSel ? null : undefined };
   };
-
   let bdraft = null;
   views['bet-new'] = () => {
     if (!bdraft) {
