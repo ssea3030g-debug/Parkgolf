@@ -58,5 +58,5 @@ jobs:
           git config user.email "courses-bot@users.noreply.github.com"
           git add app/data data-cache
           git commit -m "전국 파크골프장 목록 갱신 ($(date -u +%F))"
-          git push
+          for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 5; done
           gh workflow run app.yml --ref main
