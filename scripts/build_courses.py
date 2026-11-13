@@ -318,7 +318,100 @@ def geocode_missing(items):
                 x['sd'] = g[2]
 
 
+KAKAO_FILE = os.path.join(CACHE_DIR, 'kakao_geo.json')
+
+
+def kakao_get(path, params, key):
+    url = 'https://dapi.kakao.com' + path + '?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={'Authorization': 'KakaoAK ' + key, 'User-Agent': UA})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read().decode('utf-8'))
+
+
+def refine_kakao(items):
+    """KAKAO_KEY 가 있으면 대략적 위치(ap=1)·좌표 없는 곳을 카카오 주소/장소 검색으로 정확히 바로잡는다. 결과는 data-cache 에 저장해 다시 묻지 않음."""
+    key = os.environ.get('KAKAO_KEY', '').strip()
+    if not key:
+        log('카카오 키가 없어 정확한 위치 찾기는 건너뜁니다.')
+        return
+    geo = json.load(open(KAKAO_FILE, encoding='utf-8')) if os.path.exists(KAKAO_FILE) else {}
+    todo = [x for x in items if x.get('ap') or x.get('la') is None]
+    log(f'카카오로 위치를 바로잡을 곳: {len(todo)}곳')
+    fixed = asked = 0
+    for x in todo:
+        sd, sg, a, n = x.get('sd', ''), x.get('sg', ''), (x.get('a') or '').strip(), x['n']
+        full = FULL.get(sd, '') if sd != '광주·전남' else ''
+        addr = a
+        if a and not any(a.startswith(k) for k in SIDO):
+            addr = ' '.join(v for v in (full, sg if sg and sg not in a else '', a) if v)
+        ck = f'{addr}|{n}'
+        if ck not in geo:
+            if time.time() - START > BUDGET:
+                break
+            hit = None
+            try:
+                asked += 1
+                if addr:
+                    d = kakao_get('/v2/local/search/address.json', {'query': addr, 'size': 1}, key).get('documents') or []
+                    if d:
+                        hit = [float(d[0]['y']), float(d[0]['x']), 'addr']
+                if not hit:
+                    core = re.sub(r'\s|\(.*?\)', '', n)
+                    for q in (f'{full} {sg} {core}'.strip(), core):
+                        d = kakao_get('/v2/local/search/keyword.json', {'query': q, 'size': 5}, key).get('documents') or []
+                        for doc in d:
+                            pn = re.sub(r'\s', '', doc.get('place_name', ''))
+                            if not re.search(r'파크\s*골프', doc.get('place_name', '') + ' ' + doc.get('category_name', '')):
+                                continue
+                            near = x.get('la') is None or WX_dist(x['la'], x['lo'], float(doc['y']), float(doc['x'])) < 30
+                            same_area = not sg or sg[:-1] in doc.get('address_name', '') or sg[:-1] in doc.get('road_address_name', '')
+                            if near and same_area and (core[:2] in pn or pn[:2] in core):
+                                hit = [float(doc['y']), float(doc['x']), 'place']
+                                break
+                        if hit:
+                            break
+                        time.sleep(0.1)
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    log(f'  ⛔ 카카오 키가 거절됐어요 (HTTP {e.code}). REST API 키인지, 카카오맵 사용 설정이 켜져 있는지 확인하세요.')
+                    break
+                log(f'  카카오 검색 실패 {n}: HTTP {e.code}')
+                continue
+            except Exception as e:
+                log(f'  카카오 검색 실패 {n}: {e}')
+                continue
+            geo[ck] = hit
+            time.sleep(0.1)
+        g = geo.get(ck)
+        if g:
+            x['la'], x['lo'] = round(g[0], 6), round(g[1], 6)
+            x.pop('ap', None)
+            fixed += 1
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    json.dump(geo, open(KAKAO_FILE, 'w', encoding='utf-8'), ensure_ascii=False)
+    log(f'카카오로 정확한 위치를 찾은 곳: {fixed}곳 (새로 물어본 곳 {asked}곳)')
+
+
+def WX_dist(a, b, c, d):
+    import math
+    R, r = 6371, math.radians
+    h = math.sin(r(c - a) / 2) ** 2 + math.cos(r(a)) * math.cos(r(c)) * math.sin(r(d - b) / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(h))
+
+
+def geo_only():
+    """이미 만든 목록에서 위치만 다시 바로잡기 (포털에 다시 묻지 않음)"""
+    path = os.path.join(OUT_DIR, 'courses.json')
+    d = json.load(open(path, encoding='utf-8'))
+    refine_kakao(d['items'])
+    log(f"대략적 위치로 남은 곳: {sum(1 for x in d['items'] if x.get('ap'))}곳 / 전체 {len(d['items'])}곳")
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(d, f, ensure_ascii=False, separators=(',', ':'))
+
+
 def main():
+    if os.environ.get('PG_GEO_ONLY') == '1':
+        return geo_only()
     os.makedirs(OUT_DIR, exist_ok=True)
     ids = discover()
     log(f'검색으로 찾은 자료: {len(ids)}개')
@@ -404,6 +497,8 @@ def main():
         it['i'] = i
 
     geocode_missing(uniq)
+    refine_kakao(uniq)
+    log(f"대략적 위치로 남은 곳: {sum(1 for x in uniq if x.get('ap'))}곳")
     with_geo = sum(1 for x in uniq if x.get('la') is not None)
     log(f'\n합계: {len(uniq)}곳 (좌표 있음 {with_geo}곳) · 자료 {len(sources)}개 · 실패/제외 {len(ids) - len(sources)}개')
     if not uniq:

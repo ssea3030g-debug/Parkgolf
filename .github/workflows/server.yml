@@ -2,7 +2,7 @@
 # 준비 (저장소 Settings → Secrets and variables → Actions → Secrets):
 #   CLOUDFLARE_API_TOKEN   Cloudflare "Workers 편집" API 토큰
 #   CLOUDFLARE_ACCOUNT_ID  Cloudflare 계정 ID
-#   KMA_KEY                기상청 일반 인증키 (Decoding)
+#   KMA_KEY                공공데이터포털 일반 인증키 (Decoding) — 기상청 단기·중기예보, 생활기상지수, 기상특보, 에어코리아에 같이 씀
 #   APP_PASSCODE           (선택) 할머니 폰에 넣을 비밀번호 — AI 코치를 켤 때는 권장
 #   ANTHROPIC_API_KEY      (나중에) Claude API 키 — 없으면 AI 코치만 꺼짐
 # 선택 (같은 화면 → Variables): ALLOWED_ORIGINS = 앱 주소 (예: https://아이디.github.io)
@@ -97,9 +97,12 @@ jobs:
           pass=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("APP_PASSCODE", ""), safe=""))')
           health=$(curl -s -H "Origin: ${origin}" "$URL/health" || true)
           wx=$(curl -s -H "Origin: ${origin}" -H "X-App-Pass: ${pass}" "$URL/weather?lat=37.57&lon=126.98" || true)
-          summary=$(python3 - "$health" "$wx" <<'PY'
+          ex=$(curl -s -G -H "Origin: ${origin}" -H "X-App-Pass: ${pass}" "$URL/extra" --data-urlencode "lat=37.56" --data-urlencode "lon=127.19" --data-urlencode "addr=경기도 하남시 미사동" || true)
+          summary=$(python3 - "$health" "$wx" "$ex" <<'PY'
           import json, sys
-          h, w = sys.argv[1], sys.argv[2]
+          h, w, ex = sys.argv[1], sys.argv[2], sys.argv[3]
+          try: ex = json.loads(ex)
+          except Exception: ex = {}
           try: h = json.loads(h)
           except Exception: h = {}
           try: w = json.loads(w)
@@ -110,6 +113,15 @@ jobs:
               lines.append(f"- 기상청 날씨: ✅ 작동 (서울 지금 {c.get('temperature_2m')}℃, 예보 {len(w.get('hourly', {}).get('time', []))}시간)")
           else:
               lines.append(f"- 기상청 날씨: ❌ {w.get('error', '알 수 없음')}")
+          def part(name, key, ok):
+              v = ex.get(key) if isinstance(ex, dict) else None
+              if not v: return f"- {name}: ❌ 응답 없음"
+              if v.get("error"): return f"- {name}: ❌ {v['error']}"
+              return f"- {name}: ✅ {ok(v)}"
+          lines.append(part("미세먼지(에어코리아)", "air", lambda v: f"{v.get('station')} 측정소 미세 {v.get('pm10')} · 초미세 {v.get('pm25')}"))
+          lines.append(part("중기예보(4~10일)", "mid", lambda v: f"{len(v.get('days', []))}일치 ({v.get('city')})"))
+          lines.append(part("자외선", "uv", lambda v: f"지금 {v.get('now')} ({v.get('nowGrade')})"))
+          lines.append(part("기상특보", "warn", lambda v: f"하남 지금 {', '.join(x['kind'] for x in v.get('now', [])) or '없음'}"))
           lines.append("- AI 코치: " + ("✅ 켜짐" if h.get("ai") else "꺼짐 (ANTHROPIC_API_KEY 를 넣으면 켜져요)"))
           lines.append("- 앱 비밀번호: " + ("설정됨" if h.get("passcode") else "없음 (날씨만 쓸 때는 괜찮아요. AI 코치를 켤 때는 APP_PASSCODE 를 넣는 걸 권해요)"))
           print("\n".join(lines))

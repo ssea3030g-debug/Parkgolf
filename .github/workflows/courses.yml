@@ -4,6 +4,11 @@ name: 전국 파크골프장 목록 만들기
 
 on:
   workflow_dispatch:
+    inputs:
+      geo_only:
+        description: "위치만 다시 바로잡기 (포털에서 다시 받지 않음)"
+        type: boolean
+        default: false
   schedule:
     - cron: "17 18 1 * *"   # 매달 2일 03:17 (한국 시간)
 
@@ -25,7 +30,12 @@ jobs:
         with:
           python-version: "3.12"
       - name: 목록 만들기
-        run: python3 scripts/build_courses.py | tee build.log
+        env:
+          KAKAO_KEY: ${{ secrets.KAKAO_KEY }}
+          PG_GEO_ONLY: ${{ inputs.geo_only && '1' || '0' }}
+        run: |
+          set -o pipefail
+          python3 scripts/build_courses.py | tee build.log
       - name: 요약
         if: always()
         run: |

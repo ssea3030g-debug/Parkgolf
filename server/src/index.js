@@ -1,11 +1,13 @@
 // 파크골프 수첩 서버 (Cloudflare Workers)
 //   GET  /health                 연결 확인 (어떤 기능이 켜져 있는지)
 //   GET  /weather?lat=..&lon=..  기상청 날씨 (10분 저장)
+//   GET  /extra?lat=..&lon=..&addr=..  미세먼지(에어코리아)·중기예보·자외선·기상특보 (같은 공공데이터포털 키)
 //   POST /analyze                AI 코치 분석
 //   POST /calendar               구글 캘린더 비공개 주소 → 파크골프 일정 (주소는 저장하지 않음)
 // 비밀값(wrangler secret): KMA_KEY, ANTHROPIC_API_KEY, APP_PASSCODE
 // 일반 설정(wrangler.toml [vars]): ALLOWED_ORIGINS, AI_DAILY_LIMIT
 import { kmaWeather } from './kma.js';
+import { extras } from './extra.js';
 import { coach, CoachError, MODEL } from './ai.js';
 import { readCalendar, checkCalendarUrl } from './calendar.js';
 
@@ -76,6 +78,15 @@ export async function handle(req, env, ctx, deps = {}) {
     } catch (e) {
       return json({ error: e.message || '기상청 날씨를 받지 못했어요.' }, 502, c.headers);
     }
+  }
+
+  if (url.pathname === '/extra' && req.method === 'GET') {
+    if (!env.KMA_KEY) return json({ error: '서버에 공공데이터포털 키가 없어요.' }, 503, c.headers);
+    const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
+    if (!(lat > 32 && lat < 39.5 && lon > 124 && lon < 132.5)) return json({ error: '한국 안의 위치만 볼 수 있어요.' }, 400, c.headers);
+    const t = k => String(url.searchParams.get(k) || '').slice(0, 80);
+    const data = await extras({ lat, lon, addr: t('addr'), sd: t('sd'), sg: t('sg'), key: env.KMA_KEY, fetcher: deps.fetch || fetch, cache });
+    return json(data, 200, c.headers);
   }
 
   if (url.pathname === '/analyze' && req.method === 'POST') {
