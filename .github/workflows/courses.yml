@@ -9,6 +9,10 @@ on:
         description: "위치만 다시 바로잡기 (포털에서 다시 받지 않음)"
         type: boolean
         default: false
+      lookup:
+        description: "카카오 장소 검색만 해 보기 (이름을 | 로 구분, 목록은 안 바뀜)"
+        type: string
+        default: ""
   schedule:
     - cron: "17 18 1 * *"   # 매달 2일 03:17 (한국 시간)
 
@@ -29,7 +33,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: 장소 검색만
+        if: inputs.lookup != ''
+        env:
+          KAKAO_KEY: ${{ secrets.KAKAO_KEY }}
+          PG_LOOKUP: ${{ inputs.lookup }}
+        run: python3 scripts/kakao_lookup.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: 목록 만들기
+        if: inputs.lookup == ''
         env:
           KAKAO_KEY: ${{ secrets.KAKAO_KEY }}
           PG_GEO_ONLY: ${{ inputs.geo_only && '1' || '0' }}
@@ -37,7 +48,7 @@ jobs:
           set -o pipefail
           python3 scripts/build_courses.py | tee build.log
       - name: 요약
-        if: always()
+        if: always() && inputs.lookup == ''
         run: |
           {
             echo "## 전국 파크골프장 목록"
@@ -46,6 +57,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: 저장하고 앱 다시 올리기
+        if: inputs.lookup == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
