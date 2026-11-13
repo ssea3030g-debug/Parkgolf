@@ -399,11 +399,42 @@ def WX_dist(a, b, c, d):
     return 2 * R * math.asin(math.sqrt(h))
 
 
+FIX_FILE = os.path.join(os.path.dirname(__file__), 'course_fixes.json')
+
+
+def apply_fixes(items):
+    """사람이 지도에서 확인한 주소·위치(scripts/course_fixes.json)로 덮어쓰기. 매달 다시 만들어도 유지됨"""
+    if not os.path.exists(FIX_FILE):
+        return
+    fixes = json.load(open(FIX_FILE, encoding='utf-8'))
+    n = 0
+    for f in fixes:
+        for x in items:
+            if x['n'] == f['n'] and (not f.get('sg') or x.get('sg') == f['sg']):
+                old = localish(x)
+                if f.get('a') and f['a'] != x.get('a'):
+                    x.setdefault('old', [])
+                    if old and old not in x['old']:
+                        x['old'].append(old)
+                    x['a'] = f['a']
+                x['la'], x['lo'] = f['la'], f['lo']
+                x['fx'] = 1  # 사람이 지도에서 확인한 위치
+                x.pop('ap', None)
+                n += 1
+    log(f'지도에서 확인한 주소로 고친 곳: {n}곳')
+
+
+def localish(x):
+    a = x.get('a') or ''
+    return f"{x['sd']} {a}".strip() if x.get('sd') and not any(a.startswith(k) for k in ('서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충청', '충북', '충남', '전라', '전북', '전남', '경상', '경북', '경남', '제주')) else a
+
+
 def geo_only():
     """이미 만든 목록에서 위치만 다시 바로잡기 (포털에 다시 묻지 않음)"""
     path = os.path.join(OUT_DIR, 'courses.json')
     d = json.load(open(path, encoding='utf-8'))
     refine_kakao(d['items'])
+    apply_fixes(d['items'])
     log(f"대략적 위치로 남은 곳: {sum(1 for x in d['items'] if x.get('ap'))}곳 / 전체 {len(d['items'])}곳")
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(d, f, ensure_ascii=False, separators=(',', ':'))
@@ -498,6 +529,7 @@ def main():
 
     geocode_missing(uniq)
     refine_kakao(uniq)
+    apply_fixes(uniq)
     log(f"대략적 위치로 남은 곳: {sum(1 for x in uniq if x.get('ap'))}곳")
     with_geo = sum(1 for x in uniq if x.get('la') is not None)
     log(f'\n합계: {len(uniq)}곳 (좌표 있음 {with_geo}곳) · 자료 {len(sources)}개 · 실패/제외 {len(ids) - len(sources)}개')
