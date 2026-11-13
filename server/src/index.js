@@ -91,7 +91,8 @@ export async function handle(req, env, ctx, deps = {}) {
 
   if (url.pathname === '/extra-raw' && req.method === 'GET' && env.KMA_KEY) { // 잠깐 점검용: 공공데이터 응답 앞부분만 (키는 돌려주지 않음)
     const ALLOW = { st: 'B552584/MsrstnInfoInqireSvc/getMsrstnList', uv: '1360000/LivingWthrIdxServiceV4/getUVIdxV4', warn: '1360000/WthrWrnInfoService/getPwnStatus', air: 'B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty' };
-    const path = ALLOW[url.searchParams.get('svc')];
+    const svc = url.searchParams.get('svc') || '';
+    const path = ALLOW[svc] || (/^1360000\/LivingWthrIdxServiceV\d\/get[A-Za-z]+V\d$/.test(svc) ? svc : null);
     if (!path) return json({ error: 'svc?' }, 400, c.headers);
     const q = new URLSearchParams(url.search); q.delete('svc'); q.set('serviceKey', env.KMA_KEY);
     const r = await fetch(`https://apis.data.go.kr/${path}?${q}`);
