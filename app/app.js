@@ -1002,7 +1002,7 @@
     try {
       const d = await courseNow(c); const cur = d.w.current; const st = d.status;
       const pm = d.aq && d.aq.current ? WX.pmGrade(d.aq.current.pm10, d.aq.current.pm2_5) : null;
-      const ex = d.extra || {}, uv = ex.uv;
+      const ex = d.extra || {}, uv = new Date().getHours() < 17 ? ex.uv : null; // 저녁에는 자외선 표시 안 함
       const hours = WX.bestHours(d.w);
       const D = d.w.daily; const todayIdx = D.time.indexOf(today());
       let h = `<div class="status-big ${['good', 'warn', 'bad'][st.level]}"><span class="ico">${I(['smile', 'alert', 'stop'][st.level])}</span><div><div class="t">${st.label}</div></div></div>${st.reasons.map(r => `<p>• ${esc(r)}</p>`).join('')}
