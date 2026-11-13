@@ -976,7 +976,9 @@
     const f = c.features || {}, info = c.info || {};
     const rs = db.rounds.filter(r => r.courseId === c.id);
     const stats = rs.length ? { n: rs.length, avg: PG.avg(rs.map(r => PG.roundTotals(r).per9)), best: Math.min(...rs.map(r => PG.roundTotals(r).diff)) } : null;
-    const naver = 'https://map.naver.com/p/search/' + encodeURIComponent(c.name);
+    // 네이버 지도는 주소로 찾기 (괄호 안 설명은 빼고). 번지·도로명 숫자가 없는 막연한 주소면 이름으로
+    const addrQ = String(c.address || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/^광주·전남\s*/, '').replace(/\s+/g, ' ').trim();
+    const naver = 'https://map.naver.com/p/search/' + encodeURIComponent(/\d/.test(addrQ) ? addrQ : c.name);
     const kakao = c.lat != null ? `https://map.kakao.com/link/map/${encodeURIComponent(c.name)},${c.lat},${c.lon}` : 'https://map.kakao.com/?q=' + encodeURIComponent(c.name);
     const missing = !f.grass || !info.open;
     let html = `<section class="card"><h2 style="font-size:1.25rem">${c.fav ? '' : ''}${esc(c.name)}</h2><p class="muted">${esc(c.address || '주소 없음')}</p>
