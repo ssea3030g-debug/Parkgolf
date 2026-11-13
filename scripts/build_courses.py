@@ -352,7 +352,7 @@ def refine_kakao(items):
             try:
                 asked += 1
                 if addr:
-                    d = kakao_get('/v2/local/search/address.json', {'query': addr, 'size': 1}, key).get('documents') or []
+                    d = kakao_get('/v2/local/search/address.json', {'query': re.sub(r'\s*\(.*?\)', '', addr).strip(), 'size': 1}, key).get('documents') or []
                     if d:
                         hit = [float(d[0]['y']), float(d[0]['x']), 'addr']
                 if not hit:
