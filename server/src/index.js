@@ -89,6 +89,16 @@ export async function handle(req, env, ctx, deps = {}) {
     return json(data, 200, c.headers);
   }
 
+  if (url.pathname === '/extra-raw' && req.method === 'GET' && env.KMA_KEY) { // 잠깐 점검용: 공공데이터 응답 앞부분만 (키는 돌려주지 않음)
+    const ALLOW = { st: 'B552584/MsrstnInfoInqireSvc/getMsrstnList', uv: '1360000/LivingWthrIdxServiceV4/getUVIdxV4', warn: '1360000/WthrWrnInfoService/getPwnStatus', air: 'B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty' };
+    const path = ALLOW[url.searchParams.get('svc')];
+    if (!path) return json({ error: 'svc?' }, 400, c.headers);
+    const q = new URLSearchParams(url.search); q.delete('svc'); q.set('serviceKey', env.KMA_KEY);
+    const r = await fetch(`https://apis.data.go.kr/${path}?${q}`);
+    const t = (await r.text()).split(env.KMA_KEY).join('***');
+    return json({ status: r.status, head: t.slice(0, 2500) }, 200, c.headers);
+  }
+
   if (url.pathname === '/analyze' && req.method === 'POST') {
     if (!env.ANTHROPIC_API_KEY) return json({ error: '서버에 AI 키가 없어요.' }, 503, c.headers);
     const raw = await req.text();
