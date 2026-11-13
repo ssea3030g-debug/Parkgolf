@@ -1,7 +1,7 @@
 // 공공데이터포털(data.go.kr) 추가 자료 — 기상청 키(KMA_KEY)와 같은 인증키를 쓰고, 서비스마다 '활용신청'만 하면 됨
 //   미세먼지 : 한국환경공단 에어코리아 (측정소 목록 + 실시간 측정값)
 //   중기예보 : 기상청 중기예보 (4~10일 뒤 날씨·기온)
-//   자외선   : 기상청 생활기상지수 (자외선지수)
+//   자외선   : 기상청 생활기상지수 V5 (자외선지수)
 //   특보     : 기상청 기상특보 (지금 내려진 특보·예비특보)
 // 각 자료는 따로 실패할 수 있으므로, 실패한 것만 error 로 알려 주고 나머지는 그대로 돌려준다.
 
@@ -28,6 +28,11 @@ export async function dg(fetcher, key, path, params, label) {
     const m = text.match(/<returnAuthMsg>([^<]+)</) || text.match(/<resultMsg>([^<]+)</) || text.match(/<errMsg>([^<]+)</);
     const msg = m ? m[1] : `${r.status} ${text.slice(0, 40).replace(/\s+/g, ' ')}`;
     throw new Error(`${label}: ${/NOT_REGISTERED|Unauthorized|Forbidden|403|401/i.test(msg + r.status) ? '활용신청 승인 전이거나 키가 달라요' : msg}`);
+  }
+  const oe = j.OpenAPI_ServiceResponse && j.OpenAPI_ServiceResponse.cmmMsgHeader;
+  if (oe) { // JSON 으로 온 포털 오류
+    const rc = String(oe.returnReasonCode || '');
+    throw new Error(`${label}: ${rc === '30' || rc === '20' ? '활용신청 승인 전이거나 키가 달라요' : rc === '12' ? '서비스가 없어졌어요' : rc === '22' ? '오늘 사용 한도를 다 썼어요' : (oe.returnAuthMsg || oe.errMsg || rc)}`);
   }
   const resp = j.response || j;
   const h = resp.header || {};
@@ -88,8 +93,30 @@ export async function stationList({ key, fetcher, cache }) {
   if (cache) await cache.put(ck, new Response(JSON.stringify(list), { headers: { 'Cache-Control': 'max-age=604800' } }));
   return list;
 }
-export async function airNow({ lat, lon, key, fetcher = fetch, cache }) {
-  const list = await stationList({ key, fetcher, cache });
+/* 측정소 목록을 못 받을 때(측정소정보 활용신청 전): 시도 전체 측정소 값 중 이 시군구 이름이 들어간 측정소, 없으면 시도 평균 */
+export async function airBySido({ sd, sg, key, fetcher = fetch, cache }) {
+  if (!sd) throw new Error('미세먼지: 지역을 모르겠어요');
+  const ck = new Request(`https://parkgolf.internal/air/sido/${encodeURIComponent(sd)}/${Math.floor(Date.now() / 1200000)}`);
+  let rows = null;
+  if (cache) { const hit = await cache.match(ck); if (hit) rows = await hit.json(); }
+  if (!rows) {
+    rows = await dg(fetcher, key, 'B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty', { returnType: 'json', sidoName: sd, ver: '1.3', numOfRows: '300' }, '미세먼지');
+    rows = rows.map(r => ({ n: r.stationName, t: r.dataTime, pm10: num(r.pm10Value), pm25: num(r.pm25Value) }));
+    if (cache) await cache.put(ck, new Response(JSON.stringify(rows), { headers: { 'Cache-Control': 'max-age=1200' } }));
+  }
+  const good = rows.filter(r => r.pm10 != null || r.pm25 != null);
+  if (!good.length) throw new Error('미세먼지: 측정값이 없어요');
+  const base = String(sg || '').replace(/(시|군|구)$/, '');
+  const local = base ? good.filter(r => r.n && (r.n.includes(base) || base.includes(r.n.replace(/(시|군|구|읍|면|동)$/, '')))) : [];
+  const use = local.length ? local : good;
+  const avg = k => { const v = use.map(r => r[k]).filter(x => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
+  return { source: 'airkorea', station: local.length ? use.map(r => r.n).slice(0, 3).join('·') : `${sd} 평균`, approx: !local.length, time: use[0].t || '', pm10: avg('pm10'), pm25: avg('pm25') };
+}
+export async function airNow({ lat, lon, sd, sg, key, fetcher = fetch, cache }) {
+  let list;
+  try { list = await stationList({ key, fetcher, cache }); } catch (e) {
+    return airBySido({ sd, sg, key, fetcher, cache }); // 측정소정보 서비스를 못 쓰면 시도 자료로
+  }
   const near = list.map(s => ({ ...s, km: distKm(lat, lon, s.lat, s.lon) })).sort((a, b) => a.km - b.km).slice(0, 3);
   let lastErr = null;
   for (const s of near) { // 가까운 측정소가 점검 중이면 다음 측정소
@@ -191,7 +218,7 @@ export async function uvIndex({ lat, lon, key, fetcher = fetch, cache, now = new
   let time = uvBase(now);
   const ck = new Request(`https://parkgolf.internal/uv/${city.area}/${time}`);
   if (cache) { const hit = await cache.match(ck); if (hit) return hit.json(); }
-  const ask = (area, t) => dg(fetcher, key, '1360000/LivingWthrIdxServiceV4/getUVIdxV4', { dataType: 'JSON', areaNo: area, time: t, numOfRows: '10' }, '자외선');
+  const ask = (area, t) => dg(fetcher, key, '1360000/LivingWthrIdxServiceV5/getUVIdxV5', { dataType: 'JSON', areaNo: area, time: t, numOfRows: '10' }, '자외선');
   let rows;
   const old = { '5100000000': '4200000000', '5200000000': '4500000000' }[city.area]; // 강원·전북 특별자치도 이전 번호
   try { rows = await ask(city.area, time); } catch (e) {
@@ -280,7 +307,7 @@ export async function extras({ lat, lon, addr, sd, sg, key, fetcher = fetch, cac
   if (sg) area.sg = sg;
   const safe = p => p.then(v => v, e => ({ error: String((e && e.message) || e) }));
   const [air, mid, uv, warn] = await Promise.all([
-    safe(airNow({ lat, lon, key, fetcher, cache })),
+    safe(airNow({ lat, lon, sd: area.sd, sg: area.sg, key, fetcher, cache })),
     safe(midForecast({ lat, lon, key, fetcher, cache, now })),
     safe(uvIndex({ lat, lon, key, fetcher, cache, now })),
     safe(warnings({ key, fetcher, cache, sd: area.sd, sg: area.sg }))

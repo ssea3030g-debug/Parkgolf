@@ -233,7 +233,7 @@
     const ok = x => (x && !x.error ? x : null);
     const air = ok(ex && ex.air);
     // 미세먼지: 에어코리아 측정소 값이 있으면 그것, 없으면 Open-Meteo
-    const aq = air && (air.pm10 != null || air.pm25 != null) ? { source: 'airkorea', station: air.station, time: air.time, current: { pm10: air.pm10, pm2_5: air.pm25 } } : omAq;
+    const aq = air && (air.pm10 != null || air.pm25 != null) ? { source: 'airkorea', station: air.station, approx: !!air.approx, time: air.time, current: { pm10: air.pm10, pm2_5: air.pm25 } } : omAq;
     const extra = { mid: ok(ex && ex.mid), uv: ok(ex && ex.uv), warn: ok(ex && ex.warn) };
     const data = { w, aq, kmaErr, extra, status: WX.assessStatus(c, w, aq, null, extra) };
     wxCache[k] = { at: Date.now(), data };
@@ -1017,7 +1017,7 @@
       const lastFut = fut.length ? fut[fut.length - 1].t : today();
       const mid = ex.mid && ex.mid.days ? ex.mid.days.filter(x => x.date > lastFut).slice(0, 7) : [];
       if (mid.length) h += `<h3>그 뒤 ${mid.length}일 <span class="muted small">(중기예보)</span></h3><div class="hours">${mid.map(x => `<div style="min-width:96px"><b>${fmtDate(x.date).replace(/^\d+월 /, '')}</b><br>${x.code != null ? WX.wxIcon(x.code) + ' ' + WX.wxName(x.code) : esc(x.wfPm || x.wfAm)}<br>${x.min != null ? Math.round(x.min) : '-'}°/${x.max != null ? Math.round(x.max) : '-'}°<br><span class="muted">비 ${x.pop != null ? x.pop : '-'}%</span></div>`).join('')}</div>`;
-      h += `<p class="muted small">날씨 자료: ${d.w.source === 'kma' ? '기상청 단기예보' : 'Open-Meteo (세계 기상 예보)'}${mid.length ? '·중기예보' : ''} · 미세먼지: ${d.aq && d.aq.source === 'airkorea' ? `에어코리아 (${esc(d.aq.station)} 측정소${d.aq.time ? ', ' + esc(d.aq.time.slice(11)) + ' 기준' : ''})` : 'Open-Meteo'}${uv ? ' · 자외선: 기상청' : ''}</p>`;
+      h += `<p class="muted small">날씨 자료: ${d.w.source === 'kma' ? '기상청 단기예보' : 'Open-Meteo (세계 기상 예보)'}${mid.length ? '·중기예보' : ''} · 미세먼지: ${d.aq && d.aq.source === 'airkorea' ? `에어코리아 (${esc(d.aq.station)}${d.aq.approx ? '' : ' 측정소'}${d.aq.time ? ', ' + esc(d.aq.time.slice(11)) + ' 기준' : ''})` : 'Open-Meteo'}${uv ? ' · 자외선: 기상청' : ''}</p>`;
       if (d.w.source !== 'kma' && d.kmaErr) h += `<div class="note warn"><b>기상청 연결이 안 되어 기본 날씨를 보여 줘요</b>${esc(d.kmaErr)}<br><span class="small">설정 → 서버 연결에서 ‘저장하고 확인’을 눌러 보세요.</span></div>`;
       else if (d.w.source !== 'kma' && !srvOn()) h += `<p class="muted small">기상청 날씨를 쓰려면 설정 → 서버 연결에 서버 주소를 넣어 주세요.</p>`;
       box.innerHTML = h;

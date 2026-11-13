@@ -53,7 +53,7 @@ test('한 번에 받기: 승인 안 된 서비스는 그 항목만 오류, 나�
     if (p.endsWith('getMsrstnAcctoRltmMesureDnsty')) return ok(u.searchParams.get('stationName') === '미사' ? [{ dataTime: '2026-11-13 10:00', pm10Value: '-', pm25Value: '-' }] : [{ dataTime: '2026-11-13 10:00', pm10Value: '45', pm25Value: '20' }]);
     if (p.endsWith('getMidLandFcst')) return ok({ item: [{ rnSt4Am: 10, rnSt4Pm: 20, wf4Am: '맑음', wf4Pm: '맑음' }] });
     if (p.endsWith('getMidTa')) return ok({ item: [{ taMin4: 2, taMax4: 11 }] });
-    if (p.endsWith('getUVIdxV4')) return new Response('<OpenAPI_ServiceResponse><cmmMsgHeader><returnAuthMsg>SERVICE_KEY_IS_NOT_REGISTERED_ERROR</returnAuthMsg></cmmMsgHeader></OpenAPI_ServiceResponse>', { status: 200 });
+    if (p.endsWith('getUVIdxV5')) return new Response('<OpenAPI_ServiceResponse><cmmMsgHeader><returnAuthMsg>SERVICE_KEY_IS_NOT_REGISTERED_ERROR</returnAuthMsg></cmmMsgHeader></OpenAPI_ServiceResponse>', { status: 200 });
     if (p.endsWith('getPwnStatus')) return ok({ item: [{ tmFc: 202611131000, t6: 'o 건조주의보 : 경기도(하남)', t7: '' }] });
     return new Response('?', { status: 404 });
   };
@@ -63,4 +63,20 @@ test('한 번에 받기: 승인 안 된 서비스는 그 항목만 오류, 나�
   assert.strictEqual(r.mid.days[0].date, '2026-11-17');
   assert.match(r.uv.error, /활용신청/);
   assert.deepStrictEqual(r.warn.now.map(x => x.kind), ['건조주의보']);
+});
+
+test('측정소정보 활용신청 전: 시도 자료에서 같은 시군구 측정소로', async () => {
+  const fake = async url => {
+    const u = new URL(url); const p = u.pathname;
+    if (p.endsWith('getMsrstnList')) return new Response(JSON.stringify({ OpenAPI_ServiceResponse: { cmmMsgHeader: { errMsg: 'SERVICE_KEY_IS_NOT_REGISTERED_ERROR', returnReasonCode: '30' } } }));
+    if (p.endsWith('getCtprvnRltmMesureDnsty')) return new Response(JSON.stringify({ response: { header: { resultCode: '00' }, body: { items: [
+      { stationName: '하남시', dataTime: '2026-11-13 20:00', pm10Value: '50', pm25Value: '30' }, { stationName: '수원', dataTime: '2026-11-13 20:00', pm10Value: '10', pm25Value: '5' }] } } }));
+    if (p.endsWith('getUVIdxV5')) return new Response(JSON.stringify({ response: { header: { resultCode: '00' }, body: { items: { item: [{ date: '2026111306', h0: '1', h3: '4', h6: '6', h9: '3', h12: '0' }] } } } }));
+    return new Response(JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NO_DATA' } } }));
+  };
+  const r = await extras({ lat: 37.54, lon: 127.21, addr: '경기도 하남시 미사동', key: 'k', fetcher: fake, cache: null, now: new Date('2026-11-13T10:00:00+09:00') });
+  assert.strictEqual(r.air.station, '하남시'); assert.strictEqual(r.air.pm10, 50);
+  assert.strictEqual(r.uv.now, 4); assert.strictEqual(r.uv.todayMax, 6); assert.strictEqual(r.uv.nowGrade, '보통');
+  const r2 = await extras({ lat: 37.27, lon: 127.0, addr: '경기도 용인시 처인구', key: 'k', fetcher: fake, cache: null });
+  assert.strictEqual(r2.air.station, '경기 평균'); assert.strictEqual(r2.air.pm10, 30);
 });
