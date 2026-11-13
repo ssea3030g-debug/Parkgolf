@@ -433,7 +433,7 @@
       for (const t of toks) { if (!hay.includes(t)) { ok = false; break; } sc += name.includes(t) ? 3 : 1; }
       if (ok) out.push({ x, sc });
     }
-    return out.sort((a, b) => b.sc - a.sc || (a.x.i || 0) - (b.x.i || 0)).map(o => o.x);
+    return out.sort((a, b) => b.sc - a.sc || (b.x.pri || 0) - (a.x.pri || 0) || (a.x.i || 0) - (b.x.i || 0)).map(o => o.x); // pri: 그 지역 대표 구장(예: 구로 18홀)을 먼저
   }
   function regionCounts(items) {
     const m = {};

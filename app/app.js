@@ -843,8 +843,8 @@
     if (GL && GL.items) { // 목록에서 정확한 위치를 새로 찾았으면, 대략적 위치로 저장해 둔 내 골프장도 바로잡기
       let n = 0;
       db.courses.forEach(c => {
-        const x = GL.items.find(k => k.n === c.name && !k.ap && k.la != null && (localAddr(k) === (c.address || '') ? (c.approx || (k.fx && (c.lat !== k.la || c.lon !== k.lo))) : (k.old || []).includes(c.address)));
-        if (x) { c.lat = x.la; c.lon = x.lo; c.address = localAddr(x); c.approx = false; n++; } // 대략 위치였거나, 목록 주소가 바뀌었거나, 지도에서 확인한 위치로 고친 곳
+        const x = GL.items.find(k => (k.n === c.name || (k.on || []).includes(c.name)) && !k.ap && k.la != null && (localAddr(k) === (c.address || '') ? (c.approx || (k.fx && (c.lat !== k.la || c.lon !== k.lo))) : (k.old || []).includes(c.address)));
+        if (x) { c.lat = x.la; c.lon = x.lo; c.address = localAddr(x); c.name = x.n; c.approx = false; n++; } // 대략 위치였거나, 목록 주소가 바뀌었거나, 지도에서 확인한 위치로 고친 곳
       });
       if (n) { save(); Object.keys(wxCache).forEach(k => delete wxCache[k]); }
     }

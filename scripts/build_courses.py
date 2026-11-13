@@ -410,7 +410,7 @@ def apply_fixes(items):
     n = 0
     for f in fixes:
         for x in items:
-            if x['n'] == f['n'] and (not f.get('sg') or x.get('sg') == f['sg']):
+            if (x['n'] == f['n'] or (f.get('nn') and x['n'] == f['nn'] and f['n'] in x.get('on', [f['n']]))) and (not f.get('sg') or x.get('sg') == f['sg']):
                 old = localish(x)
                 if f.get('a') and f['a'] != x.get('a'):
                     x.setdefault('old', [])
@@ -418,6 +418,15 @@ def apply_fixes(items):
                         x['old'].append(old)
                     x['a'] = f['a']
                 x['la'], x['lo'] = f['la'], f['lo']
+                if f.get('sg_new'):
+                    x['sg'] = f['sg_new']
+                if f.get('nn'):  # 이름도 알아보기 쉽게 (예전 이름은 on 에 남겨 앱이 저장해 둔 것도 찾게)
+                    x.setdefault('on', [])
+                    if f['n'] not in x['on']:
+                        x['on'].append(f['n'])
+                    x['n'] = f['nn']
+                if f.get('pri'):
+                    x['pri'] = f['pri']
                 x['fx'] = 1  # 사람이 지도에서 확인한 위치
                 x.pop('ap', None)
                 n += 1
