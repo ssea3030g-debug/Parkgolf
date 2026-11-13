@@ -222,14 +222,20 @@
     const hit = wxCache[k];
     if (hit && Date.now() - hit.at < 10 * 60000) return hit.data;
     let kmaErr = '';
-    const [om, aq, kma] = await Promise.all([
+    const [om, omAq, kma, ex] = await Promise.all([
       WX.nowWeather(c.lat, c.lon).catch(() => null),
       WX.airQuality(c.lat, c.lon).catch(() => null),
-      srvOn() ? srv(`/weather?lat=${c.lat}&lon=${c.lon}`).catch(e => { kmaErr = e.message || '알 수 없는 오류'; return null; }) : null
+      srvOn() ? srv(`/weather?lat=${c.lat}&lon=${c.lon}`).catch(e => { kmaErr = e.message || '알 수 없는 오류'; return null; }) : null,
+      srvOn() ? srv(`/extra?lat=${c.lat}&lon=${c.lon}&addr=${encodeURIComponent(c.address || '')}`).catch(() => null) : null
     ]);
     const w = WX.mergeKma(om, kma);
     if (!w) throw new Error('날씨 없음');
-    const data = { w, aq, kmaErr, status: WX.assessStatus(c, w, aq) };
+    const ok = x => (x && !x.error ? x : null);
+    const air = ok(ex && ex.air);
+    // 미세먼지: 에어코리아 측정소 값이 있으면 그것, 없으면 Open-Meteo
+    const aq = air && (air.pm10 != null || air.pm25 != null) ? { source: 'airkorea', station: air.station, time: air.time, current: { pm10: air.pm10, pm2_5: air.pm25 } } : omAq;
+    const extra = { mid: ok(ex && ex.mid), uv: ok(ex && ex.uv), warn: ok(ex && ex.warn) };
+    const data = { w, aq, kmaErr, extra, status: WX.assessStatus(c, w, aq, null, extra) };
     wxCache[k] = { at: Date.now(), data };
     return data;
   }
@@ -834,6 +840,15 @@
   async function loadGL() {
     if (GL !== null) return GL;
     try { const r = await fetch('data/courses.json'); if (!r.ok) throw new Error('no'); GL = await r.json(); } catch (e) { GL = false; }
+    if (GL && GL.items) { // 목록에서 정확한 위치를 새로 찾았으면, 대략적 위치로 저장해 둔 내 골프장도 바로잡기
+      let n = 0;
+      db.courses.forEach(c => {
+        if (!c.approx) return;
+        const x = GL.items.find(k => k.n === c.name && localAddr(k) === (c.address || '') && !k.ap && k.la != null);
+        if (x) { c.lat = x.la; c.lon = x.lo; c.approx = false; n++; }
+      });
+      if (n) { save(); Object.keys(wxCache).forEach(k => delete wxCache[k]); }
+    }
     return GL;
   }
   const SIDO_START = /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주)/;
@@ -987,17 +1002,22 @@
     try {
       const d = await courseNow(c); const cur = d.w.current; const st = d.status;
       const pm = d.aq && d.aq.current ? WX.pmGrade(d.aq.current.pm10, d.aq.current.pm2_5) : null;
+      const ex = d.extra || {}, uv = ex.uv;
       const hours = WX.bestHours(d.w);
       const D = d.w.daily; const todayIdx = D.time.indexOf(today());
       let h = `<div class="status-big ${['good', 'warn', 'bad'][st.level]}"><span class="ico">${I(['smile', 'alert', 'stop'][st.level])}</span><div><div class="t">${st.label}</div></div></div>${st.reasons.map(r => `<p>• ${esc(r)}</p>`).join('')}
         <div class="wx" style="margin-top:12px"><div><span class="k">지금 날씨</span><span class="v">${WX.wxIcon(cur.weather_code)} ${WX.wxName(cur.weather_code)}</span></div><div><span class="k">기온 (체감)</span><span class="v">${Math.round(cur.temperature_2m)}℃ <span class="small">(${Math.round(cur.apparent_temperature)}℃)</span></span></div>
-        <div><span class="k">바람</span><span class="v">초속 ${Math.round(cur.wind_speed_10m)}m</span></div><div><span class="k">미세먼지</span><span class="v">${pm ? pm.icon + ' ' + pm.name : '-'}</span></div>
+        <div><span class="k">바람</span><span class="v">초속 ${Math.round(cur.wind_speed_10m)}m</span></div><div><span class="k">미세먼지</span><span class="v">${pm ? pm.icon + ' ' + pm.name : '-'}${d.aq && d.aq.current && d.aq.current.pm10 != null ? `<span class="small muted" style="display:block">미세 ${Math.round(d.aq.current.pm10)} · 초미세 ${d.aq.current.pm2_5 != null ? Math.round(d.aq.current.pm2_5) : '-'}</span>` : ''}</span></div>
+        ${uv ? `<div><span class="k">자외선 (오늘 최고)</span><span class="v">${esc(uv.todayGrade || uv.nowGrade || '-')}${uv.todayMax != null ? ` <span class="small">(${uv.todayMax})</span>` : ''}</span></div>` : ''}
         ${todayIdx >= 0 ? `<div><span class="k">오늘 최고/최저</span><span class="v">${Math.round(D.temperature_2m_max[todayIdx])}° / ${Math.round(D.temperature_2m_min[todayIdx])}°</span></div><div><span class="k">비 올 확률</span><span class="v">${D.precipitation_probability_max[todayIdx] != null ? D.precipitation_probability_max[todayIdx] + '%' : '-'}</span></div>
         ${D.sunrise ? `<div><span class="k">해 뜨는 시간</span><span class="v">${D.sunrise[todayIdx].slice(11)}</span></div><div><span class="k">해 지는 시간</span><span class="v">${D.sunset[todayIdx].slice(11)}</span></div>` : ''}` : ''}</div>`;
       if (hours.length) { const best = hours.find(x => x.best); h += `<h3>오늘 시간별 날씨 ${best ? `<span class="tag good">${best.hour}시가 가장 좋아요</span>` : ''}</h3><div class="hours">${hours.map(x => `<div class="${x.best ? 'best' : ''}"><b>${x.hour}시</b><br>${WX.wxIcon(x.code)}<br>${Math.round(x.temp)}℃<br><span class="muted">비 ${x.pop}%</span></div>`).join('')}</div>`; }
       const fut = D.time.map((t, i) => ({ t, i })).filter(x => x.t > today()).slice(0, 3);
-      if (fut.length) h += `<h3>앞으로 3일</h3><div class="hours">${fut.map(({ t, i }) => `<div style="min-width:96px"><b>${fmtDate(t).replace(/^\d+월 /, '')}</b><br>${WX.wxIcon(D.weather_code[i])} ${WX.wxName(D.weather_code[i])}<br>${Math.round(D.temperature_2m_min[i])}°/${Math.round(D.temperature_2m_max[i])}°<br><span class="muted">비 ${D.precipitation_probability_max[i] != null ? D.precipitation_probability_max[i] : '-'}%</span></div>`).join('')}</div>`;
-      h += `<p class="muted small">날씨 자료: ${d.w.source === 'kma' ? '기상청 단기예보' : 'Open-Meteo (세계 기상 예보)'} · 미세먼지: Open-Meteo</p>`;
+      if (fut.length) h += `<h3>앞으로 ${fut.length}일</h3><div class="hours">${fut.map(({ t, i }) => `<div style="min-width:96px"><b>${fmtDate(t).replace(/^\d+월 /, '')}</b><br>${WX.wxIcon(D.weather_code[i])} ${WX.wxName(D.weather_code[i])}<br>${Math.round(D.temperature_2m_min[i])}°/${Math.round(D.temperature_2m_max[i])}°<br><span class="muted">비 ${D.precipitation_probability_max[i] != null ? D.precipitation_probability_max[i] : '-'}%</span></div>`).join('')}</div>`;
+      const lastFut = fut.length ? fut[fut.length - 1].t : today();
+      const mid = ex.mid && ex.mid.days ? ex.mid.days.filter(x => x.date > lastFut).slice(0, 7) : [];
+      if (mid.length) h += `<h3>그 뒤 ${mid.length}일 <span class="muted small">(중기예보)</span></h3><div class="hours">${mid.map(x => `<div style="min-width:96px"><b>${fmtDate(x.date).replace(/^\d+월 /, '')}</b><br>${x.code != null ? WX.wxIcon(x.code) + ' ' + WX.wxName(x.code) : esc(x.wfPm || x.wfAm)}<br>${x.min != null ? Math.round(x.min) : '-'}°/${x.max != null ? Math.round(x.max) : '-'}°<br><span class="muted">비 ${x.pop != null ? x.pop : '-'}%</span></div>`).join('')}</div>`;
+      h += `<p class="muted small">날씨 자료: ${d.w.source === 'kma' ? '기상청 단기예보' : 'Open-Meteo (세계 기상 예보)'}${mid.length ? '·중기예보' : ''} · 미세먼지: ${d.aq && d.aq.source === 'airkorea' ? `에어코리아 (${esc(d.aq.station)} 측정소${d.aq.time ? ', ' + esc(d.aq.time.slice(11)) + ' 기준' : ''})` : 'Open-Meteo'}${uv ? ' · 자외선: 기상청' : ''}</p>`;
       if (d.w.source !== 'kma' && d.kmaErr) h += `<div class="note warn"><b>기상청 연결이 안 되어 기본 날씨를 보여 줘요</b>${esc(d.kmaErr)}<br><span class="small">설정 → 서버 연결에서 ‘저장하고 확인’을 눌러 보세요.</span></div>`;
       else if (d.w.source !== 'kma' && !srvOn()) h += `<p class="muted small">기상청 날씨를 쓰려면 설정 → 서버 연결에 서버 주소를 넣어 주세요.</p>`;
       box.innerHTML = h;
@@ -1282,7 +1302,8 @@
         if (D.precipitation_probability_max[i] >= 40) tips.push('우산·우비 (비 올 확률 ' + D.precipitation_probability_max[i] + '%)');
         if (D.temperature_2m_max[i] >= 28) tips.push('물 넉넉히, 쿨토시·양산');
         if (D.temperature_2m_min[i] <= 5) tips.push('핫팩·두꺼운 장갑·목도리');
-        if (D.uv_index_max && D.uv_index_max[i] >= 6) tips.push('선크림·선글라스 (자외선 강함)');
+        const uvMax = d.extra && d.extra.uv && d.extra.uv.todayMax != null ? d.extra.uv.todayMax : (D.uv_index_max ? D.uv_index_max[i] : null);
+        if (uvMax >= 6) tips.push('선크림·선글라스·챙 넓은 모자 (자외선 강함)');
         if (D.wind_speed_10m_max[i] >= 7) tips.push('바람막이 (바람 강함)');
         if (d.aq && d.aq.current && WX.pmGrade(d.aq.current.pm10, d.aq.current.pm2_5).g >= 3) tips.push('마스크 (미세먼지 나쁨)');
         box.innerHTML = `<p class="muted small" style="margin-top:0">${esc(fav.name)} 기준</p>` + (tips.length ? tips.map(t => `<div class="note info">${esc(t)}</div>`).join('') : '<p>오늘은 날씨가 무난해요. 기본 준비물만 챙기세요.</p>');

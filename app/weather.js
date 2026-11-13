@@ -1,7 +1,7 @@
 /* 파크골프 수첩 — 날씨·대기질·골프장 검색
  * 모두 무료·키 없는 공개 서비스 사용:
  *   날씨  : Open-Meteo (기상청·유럽 모델 기반 예보, 과거 기록)
- *   대기질: Open-Meteo Air Quality (미세먼지 PM10, 초미세먼지 PM2.5)
+ *   대기질: Open-Meteo Air Quality (서버에 연결되면 에어코리아 측정소 값을 우선 사용)
  *   검색  : OpenStreetMap Nominatim(이름 검색), Overpass(내 주변 찾기)
  */
 (function (root) {
@@ -87,7 +87,7 @@
   }
 
   /* 운영 상황 판단 (공식 정보가 아니라 날씨·휴장일로 '예상') */
-  function assessStatus(course, w, aq, now) {
+  function assessStatus(course, w, aq, now, extra) {
     now = now || new Date();
     const reasons = []; let level = 0; // 0 좋음, 1 주의, 2 어려움
     const f = (course && course.info) || {};
@@ -118,6 +118,24 @@
       const g = pmGrade(aq.current.pm10, aq.current.pm2_5);
       if (g.g >= 4) { level = Math.max(level, 2); reasons.push('미세먼지가 매우 나빠요. 바깥 운동은 쉬세요.'); }
       else if (g.g === 3) { level = Math.max(level, 1); reasons.push('미세먼지가 나빠요. 마스크를 챙기세요.'); }
+    }
+    // 기상특보 (서버가 이 지역 것만 골라 줌). 골프와 상관 있는 것만: 비·눈·바람·더위·추위·태풍·황사
+    const ex = extra || {};
+    const golfWarn = k => /호우|대설|강풍|폭염|한파|태풍|황사|미세먼지/.test(k);
+    if (ex.warn) {
+      const seen = new Set();
+      (ex.warn.now || []).filter(x => golfWarn(x.kind) && !seen.has(x.kind) && seen.add(x.kind)).forEach(x => {
+        const big = /경보/.test(x.kind) && !/주의보/.test(x.kind);
+        level = Math.max(level, big ? 2 : 1);
+        reasons.unshift(`지금 이 지역에 ${x.kind}${x.part ? '(일부 지역)' : ''}가 내려져 있어요.${big ? ' 오늘은 쉬는 게 좋아요.' : ''}`);
+      });
+      (ex.warn.pre || []).filter(x => golfWarn(x.kind) && !seen.has(x.kind) && seen.add(x.kind)).forEach(x => {
+        reasons.push(`곧 ${x.kind}가 내려질 수 있어요(예비특보). 일기예보를 확인하세요.`);
+      });
+    }
+    if (ex.uv && ex.uv.todayMax != null && (now.getHours() < 16)) {
+      if (ex.uv.todayMax >= 8) { level = Math.max(level, 1); reasons.push(`오늘 자외선 지수가 ${ex.uv.todayMax}로 '${ex.uv.todayGrade}' 단계예요. 한낮은 피하고 모자·선크림을 꼭 챙기세요.`); }
+      else if (ex.uv.todayMax >= 6) reasons.push(`오늘 자외선 지수가 ${ex.uv.todayMax}로 높아요. 모자·선크림을 챙기세요.`);
     }
     if (!reasons.length) reasons.push('날씨가 좋아 치기 좋은 날이에요.');
     const label = ['치기 좋아요', '주의하세요', '오늘은 어려워요'][level];
