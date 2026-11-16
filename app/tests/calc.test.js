@@ -135,3 +135,10 @@ test('전국 파크골프장 목록 검색', () => {
   assert.deepStrictEqual(names('없는곳'), []);
   assert.deepStrictEqual(PG.regionCounts(items)[0], ['경북', 2]);
 });
+
+test('구름 많음(기상청 전용 코드 102)을 천둥번개로 보지 않는다', () => {
+  const mk = c => ({ current: { weather_code: c, precipitation: 0, wind_speed_10m: 2, apparent_temperature: 15, temperature_2m: 15 }, daily: { precipitation_sum: [0, 0] } });
+  const at = new Date('2026-11-16T10:00:00+09:00');
+  for (const c of [0, 3, 102]) assert.strictEqual(WX.assessStatus({}, mk(c), null, at).level, 0, `코드 ${c}`);
+  for (const c of [95, 96, 99]) assert.strictEqual(WX.assessStatus({}, mk(c), null, at).level, 2, `코드 ${c}`);
+});

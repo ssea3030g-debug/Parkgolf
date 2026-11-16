@@ -21,7 +21,7 @@
   const wxIcon = c => (WMO[c] || ['-', '🌡️'])[1];
   const isRainCode = c => (c >= 51 && c <= 68) || (c >= 80 && c <= 82);
   const isSnowCode = c => (c >= 71 && c <= 77) || c === 85 || c === 86;
-  const isStormCode = c => c >= 95;
+  const isStormCode = c => c >= 95 && c <= 99; // 100번대는 기상청 전용(102 = 구름 많음)이라 천둥번개가 아님
 
   const pad = n => String(n).padStart(2, '0');
   function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
